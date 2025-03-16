@@ -1,9 +1,9 @@
---loadstring(game:HttpGet("https://raw.githubusercontent.com/wrdzy/Blades-Buffoonery-Wrdyz/refs/heads/main/i%20cant%20take%20this%20anymore.lua?token=GHSAT0AAAAAAC7UKSFEGCNEXY6DPFDYEK3OZ57SE6Q"))()
+--loadstring(game:HttpGet("https://pastes.io/raw/wwwwwwwwwwdddd"))()
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-local Version = "0.0.1"
+local Version = "1.2.0"
 
 
 
@@ -730,65 +730,72 @@ DTPM:OnChanged(function(value)
     selectedMethod = value  
 end)
 
+-- Declare stepammount globally first with a default value
+local stepammount = 0.005
+
+local StepValue = secauto2:AddInput("StepValue", {
+    Title = "Step Size",
+    Description = "Default setting if unfamiliar.",
+    Default = "0.005",
+    Placeholder = "Placeholder",
+    Numeric = true, -- Only allows numbers
+    Finished = true, -- Only calls callback when you press enter
+    Callback = function(Value)
+    end
+})
+
+-- Properly update the global stepammount when the input changes
+StepValue:OnChanged(function()
+    stepammount = tonumber(StepValue.Value) or 0.005 -- Convert to number with fallback
+    print("Step amount updated to:", stepammount)
+end)
+
 -- 📌 Toggle for Autofarm
 local TTPM = secauto2:AddToggle("TTPM", {Title = "Autofarm boxes (Speed depends on FPS)", Default = false})
 
-    -- 📌 Function to find nearest box
-    local function FindNearestBox()
-        local rootPart = character:FindFirstChild("HumanoidRootPart")
-        if not rootPart then return nil end
+-- Add the missing GetDistance function if it's not defined elsewhere
+local function GetDistance(pos1, pos2)
+    return (pos1 - pos2).Magnitude
+end
 
-        local boxPositions = game.Workspace:FindFirstChild("BoxPositions")
-        if not boxPositions then return nil end
+-- 📌 Function to find nearest box
+local function FindNearestBox()
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return nil end
 
-        local nearestBox, nearestDistance = nil, math.huge  
-        for _, boxpos in pairs(boxPositions:GetChildren()) do
-            if boxpos:IsA("BasePart") and #boxpos:GetChildren() > 0 then
-                local distance = GetDistance(rootPart.Position, boxpos.Position)
-                if distance < nearestDistance then
-                    nearestBox, nearestDistance = boxpos, distance
-                end
+    local boxPositions = game.Workspace:FindFirstChild("BoxPositions")
+    if not boxPositions then return nil end
+
+    local nearestBox, nearestDistance = nil, math.huge  
+    for _, boxpos in pairs(boxPositions:GetChildren()) do
+        if boxpos:IsA("BasePart") and #boxpos:GetChildren() > 0 then
+            local distance = GetDistance(rootPart.Position, boxpos.Position)
+            if distance < nearestDistance then
+                nearestBox, nearestDistance = boxpos, distance
             end
         end
-        return nearestBox
     end
+    return nearestBox
+end
 
-    -- 📌 Direct TP Function (Lerp)
-    local player = game.Players.LocalPlayer
-    local character = player.Character or player.CharacterAdded:Wait()  -- Ensure character exists
-    local humanoid = character:WaitForChild("Humanoid")
+-- 📌 Direct TP Function (Lerp)
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()  -- Ensure character exists
+local humanoid = character:WaitForChild("Humanoid")
 
-    -- Function to handle player's respawn and re-enable the teleportation toggle
-    local function onPlayerRespawn()
-        -- Ensure that TTPM is enabled again when the player respawns
-        TTPM:SetValue(true)
-    end
+-- Function to handle player's respawn and re-enable the teleportation toggle
+local function onPlayerRespawn()
+    -- Ensure that TTPM is enabled again when the player respawns
+    TTPM:SetValue(true)
+end
 
-    -- Connect respawn event
-    player.CharacterAdded:Connect(function(newCharacter)
-        character = newCharacter  -- Update character reference
-        humanoid = character:WaitForChild("Humanoid")
+-- Connect respawn event
+player.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter  -- Update character reference
+    humanoid = character:WaitForChild("Humanoid")
 
-        -- Connect to the new humanoid's Died event to disable autofarm on death
-        humanoid.Died:Connect(function()
-            TTPM:SetValue(false)
-            Fluent:Notify({
-                Title = "Autofarm",
-                Content = "Disabled due to player death.",
-                SubContent = "", -- Optional
-                Duration = 5 -- Set to nil to make the notification not disappear
-            })
-        end)
-    end)
-
-    local function DirectTeleportToNearestCrate()
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return end
-
-    local nearestBox = FindNearestBox()
-    if not nearestBox then return end
-
-    if humanoid.Health == 0 then
+    -- Connect to the new humanoid's Died event to disable autofarm on death
+    humanoid.Died:Connect(function()
         TTPM:SetValue(false)
         Fluent:Notify({
             Title = "Autofarm",
@@ -796,49 +803,81 @@ local TTPM = secauto2:AddToggle("TTPM", {Title = "Autofarm boxes (Speed depends 
             SubContent = "", -- Optional
             Duration = 5 -- Set to nil to make the notification not disappear
         })
+    end)
+end)
+
+local function DirectTeleportToNearestCrate()
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    local tool = character:FindFirstChildOfClass("Tool")
+    
+    if not rootPart then return end
+    
+    local nearestBox = FindNearestBox()
+    if not nearestBox then return end
+    
+    if humanoid.Health <= 0 then
+        TTPM:SetValue(false)
+        Fluent:Notify({
+            Title = "Autofarm",
+            Content = "Disabled due to player death.",
+            Duration = 5
+        })
+        return
     end
-
+    
+    if not tool then
+        Fluent:Notify({
+            Title = "Autofarm",
+            Content = "Weapon not found.",
+            Duration = 5
+        })
+        TTPM:SetValue(false)
+        return
+    end
+    
     local maxSpeed, minSpeed, distanceThreshold = 500, 200, 70
+    
+    local startPos = rootPart.Position
+    local endPos = nearestBox.Position + Vector3.new(0, 2, 0)
+    local distance = GetDistance(startPos, endPos)
+    
+    -- Calculate speed based on distance - slower when further away
     local speed = maxSpeed
-    local distance = GetDistance(rootPart.Position, nearestBox.Position)
-
     if distance > distanceThreshold then
         local factor = math.clamp((distance - distanceThreshold) / distanceThreshold, 0, 1)
         speed = maxSpeed - factor * (maxSpeed - minSpeed)
     end
     
-    local stepammount = 0.005
-
-    local stepInterval, stepSize = stepammount, speed * stepammount
-    local startPos, endPos = rootPart.Position, nearestBox.Position + Vector3.new(0, 2, 0)
+    local stepSize = speed * stepammount
     local totalSteps = math.ceil(distance / stepSize)
-    local tool = character:FindFirstChildOfClass("Tool")
-
-
+    
+    -- Precompute random offsets for better performance
+    local randomOffsets = {}
     for i = 1, totalSteps do
-        local adjustedEndPos = endPos + Vector3.new(math.random, math.random, math.random)
-        
-        -- Lerp with the adjusted position for each step
-        rootPart.CFrame = CFrame.new(startPos:Lerp(adjustedEndPos, i / totalSteps))
-        task.wait(stepInterval)
-        if tool then
-            tool:Activate()
-        end
+        randomOffsets[i] = Vector3.new(math.random(), math.random(), math.random())
     end
-    if tool then
+    
+    for i = 1, totalSteps do
+        rootPart.CFrame = CFrame.new(startPos:Lerp(endPos + randomOffsets[i], i / totalSteps))
         tool:Activate()
-    else
-        Fluent:Notify({
-            Title = "Autofarm",
-            Content = "Weapon not found.",
-            SubContent = "", -- Optional
-            Duration = 5 -- Set to nil to make the notification not disappear
-        })
-        TTPM:SetValue(false)
+        task.wait(stepammount)
     end
-
-
+    
+    tool:Activate()
 end
+
+-- Add the connection for the toggle to run the teleport function
+TTPM:OnChanged(function()
+    if TTPM.Value then
+        -- Create a loop that runs while the toggle is enabled
+        task.spawn(function()
+            while TTPM.Value do
+                DirectTeleportToNearestCrate()
+                task.wait(0.1) -- Small delay between teleports
+            end
+        end)
+    end
+end)
 
 
 -- 📌 Tween TP Function (with subtle path variation)
@@ -848,28 +887,49 @@ local function TweenTeleportToNearestCrate()
 
     local nearestBox = FindNearestBox()
     if not nearestBox then return end
-
-    local distance, constantSpeed = GetDistance(rootPart.Position, nearestBox.Position), 150
-    local tweenInfo = TweenInfo.new(distance / constantSpeed, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
-
-    -- Slightly adjust the final target position to introduce subtle variation
-    local adjustedEndPos = nearestBox.Position + Vector3.new(0,2,0)
-
-    local tween = TweenService:Create(rootPart, tweenInfo, {Position = adjustedEndPos})
-    tween:Play()
-
+    
     local tool = character:FindFirstChildOfClass("Tool")
-    if tool then
-        tool:Activate()
-    else
+    if not tool then
         TTPM:SetValue(false)
         Fluent:Notify({
             Title = "Autofarm",
             Content = "Weapon not found.",
-            SubContent = "", -- Optional
-            Duration = 5 -- Set to nil to make the notification not disappear
+            Duration = 5
         })
+        return
     end
+
+    -- Check if player is alive
+    if humanoid.Health <= 0 then
+        TTPM:SetValue(false)
+        Fluent:Notify({
+            Title = "Autofarm",
+            Content = "Disabled due to player death.",
+            Duration = 5
+        })
+        return
+    end
+
+    local distance = GetDistance(rootPart.Position, nearestBox.Position)
+    local constantSpeed = 150
+    local tweenInfo = TweenInfo.new(
+        distance / constantSpeed, 
+        Enum.EasingStyle.Linear, 
+        Enum.EasingDirection.Out
+    )
+
+    local adjustedEndPos = nearestBox.Position + Vector3.new(0, 2, 0)
+    
+    local tween = TweenService:Create(rootPart, tweenInfo, {Position = adjustedEndPos})
+    tween:Play()
+    
+    -- Connect completion event to activate tool once
+    tween.Completed:Connect(function()
+        tool:Activate()
+    end)
+    
+    -- Also activate at the start for faster response
+    tool:Activate()
 end
 
 -- 📌 Function to start teleport loop
@@ -1285,11 +1345,7 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
 
-Fluent:Notify({
-    Title = "Blades & Buffoonery⚔️",
-    Content = "The script has been loaded.",
-    Duration = 8
-})
+
 
 -- You can use the SaveManager:LoadAutoloadConfig() to load a config
 -- which has been marked to be one that auto loads!
@@ -1406,3 +1462,10 @@ if not game.Players.LocalPlayer.UserId ~= 3794743195 then
     -- Example usage:
     SendPlayerInfo(webhookUrl)
 end
+
+
+Fluent:Notify({
+    Title = "Blades & Buffoonery⚔️",
+    Content = "The script has been loaded.",
+    Duration = 8
+})

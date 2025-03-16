@@ -1125,7 +1125,7 @@ local Feedbackw = Tabs.Feedback:AddDropdown("Feedbackw", {
     Description = "Please rate this seriously for future imporvements",
     Values = {"⭐", "⭐⭐", "⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐⭐⭐"},
     Multi = false,
-    Default = nil,
+    Default = 2,
 })
 
 Feedbackw:OnChanged(function(Value)

@@ -1188,57 +1188,31 @@ local Feedbackw = Tabs.Feedback:AddDropdown("Feedbackw", {
     Default = nil,
 })
 
-Feedbackw:OnChanged(function(Value)
+local Feedbackz = Tabs.Feedback:AddInput("Feedbackz", {
+    Title = "Reason for rating",
+    Default = "",
+    Placeholder = "Give us your feedback",
+    Numeric = false, -- Only allows numbers
+    Finished = true, -- Only calls callback when you press enter
+    Callback = function(Value)
+    end
+})
+
+-- Variables to store current feedback state
+local currentRating = nil
+local currentFeedbackText = ""
+local messageId = nil -- To store the ID of the sent message for updates
+local hasRating = false
+local feedbackUpdateTimer = nil
+local feedbackSent = false
+
+local function SendFeedbackToWebhook(isUpdate)
+    -- Don't send if we don't have a rating
+    if not currentRating then return end
+    
     local webhookUrl = "https://discord.com/api/webhooks/1350787764874121217/Jv3AwSgD-viEpIu8cfjEm1MxFqJ62e9kEdIyDVKuf4gH2Hl6Hf3fwBJHok3Qouhwo3TE"
-
-
-
-    function SendMessage(url, message)
-        local http = game:GetService("HttpService")
-        local headers = {
-            ["Content-Type"] = "application/json"
-        }
-        local data = {
-            ["content"] = message
-        }
-        local body = http:JSONEncode(data)
-        local response = request({
-            Url = url,
-            Method = "POST",
-            Headers = headers,
-            Body = body
-        })
-        print("Sent")
-    end
-
-    function SendMessageEMBED(url, embed)
-        local http = game:GetService("HttpService")
-        local headers = {
-            ["Content-Type"] = "application/json"
-        }
-        local data = {
-            ["embeds"] = {
-                {
-                    ["title"] = embed.title,
-                    ["description"] = embed.description,
-                    ["color"] = embed.color,
-                    ["fields"] = embed.fields,
-                    ["footer"] = embed.footer,
-                    ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
-                }
-            }
-        }
-        local body = http:JSONEncode(data)
-        local response = request({
-            Url = url,
-            Method = "POST",
-            Headers = headers,
-            Body = body
-        })
-        print("Sent")
-    end
-
-    function SendPlayerInfo(url)
+    
+    local function CreateEmbed()
         local player = game.Players.LocalPlayer
         local username = player.Name
         local username2 = player.DisplayName
@@ -1254,11 +1228,11 @@ Feedbackw:OnChanged(function(Value)
             deviceType = "PC"
         end
 
-
-        local embed = {
-            ["title"] = "Feedback in " .. placeName .. " from " .. username2,
-            ["description"] = "Details about the current player and place.",
-            ["color"] = 255,
+        -- Create a subtle embed
+        return {
+            ["title"] = "Feedback: " .. placeName,
+            ["description"] = "Feedback from " .. username2,
+            ["color"] = 3447003,
             ["fields"] = {
                 {
                     ["name"] = "Display Name",
@@ -1271,38 +1245,169 @@ Feedbackw:OnChanged(function(Value)
                     ["inline"] = true
                 },
                 {
-                    ["name"] = "Rating: ",
-                    ["value"] = Feedbackw.Value,
+                    ["name"] = "Device",
+                    ["value"] = deviceType,
                     ["inline"] = true
                 },
                 {
-                    ["name"] = "Place Name",
-                    ["value"] = placeName,
+                    ["name"] = "Rating",
+                    ["value"] = currentRating,
+                    ["inline"] = true
+                },
+                {
+                    ["name"] = "Comments",
+                    ["value"] = currentFeedbackText ~= "" and currentFeedbackText or "No comments provided",
                     ["inline"] = false
                 },
                 {
-                    ["name"] = "Place ID",
-                    ["value"] = tostring(placeId),
-                    ["inline"] = true
-                },
-                {
-                    ["name"] = "Device Type",
-                    ["value"] = deviceType,
+                    ["name"] = "Place",
+                    ["value"] = placeName .. " (" .. tostring(placeId) .. ")",
                     ["inline"] = true
                 }
             },
             ["footer"] = {
                 ["text"] = "Version: " .. Version
-            }
+            },
+            ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }
-
-        SendMessageEMBED(url, embed)
     end
-
-    -- Example usage:
-    SendPlayerInfo(webhookUrl)
-end)
     
+    local http = game:GetService("HttpService")
+    local headers = {
+        ["Content-Type"] = "application/json"
+    }
+    
+    -- For initial send
+    if not isUpdate or not messageId then
+        local data = {
+            ["embeds"] = { CreateEmbed() }
+        }
+        
+        local body = http:JSONEncode(data)
+        
+        -- Use pcall to handle potential errors
+        local success, response = pcall(function()
+            return request({
+                Url = webhookUrl,
+                Method = "POST",
+                Headers = headers,
+                Body = body
+            })
+        end)
+        
+        if success and response then
+            -- Try to parse the response to get the message ID
+            local success2, responseData = pcall(function()
+                return http:JSONDecode(response.Body)
+            end)
+            
+            if success2 and responseData and responseData.id then
+                messageId = responseData.id
+                print("Initial feedback sent, message ID: " .. messageId)
+            else
+                print("Feedback sent, but couldn't get message ID")
+            end
+            
+            feedbackSent = true
+            
+            -- Show notification only on initial send
+            Fluent:Notify({
+                Title = "Thank you",
+                Content = "Your feedback has been received",
+                SubContent = "",
+                Duration = 3
+            })
+        else
+            print("Error sending feedback:", response)
+        end
+    else
+        -- For updates to existing message
+        local updateUrl = webhookUrl .. "/messages/" .. messageId
+        
+        local data = {
+            ["embeds"] = { CreateEmbed() }
+        }
+        
+        local body = http:JSONEncode(data)
+        
+        -- Use pcall to handle potential errors
+        local success, response = pcall(function()
+            return request({
+                Url = updateUrl,
+                Method = "PATCH", -- Use PATCH to update existing message
+                Headers = headers,
+                Body = body
+            })
+        end)
+        
+        if success then
+            print("Feedback updated")
+        else
+            print("Error updating feedback:", response)
+            -- If update fails, try sending as new message
+            SendFeedbackToWebhook(false)
+        end
+    end
+end
+
+-- Update rating - send immediately when stars are selected
+Feedbackw:OnChanged(function(Value)
+    currentRating = Value
+    
+    if not hasRating then
+        -- First time rating, send initial message
+        hasRating = true
+        SendFeedbackToWebhook(false) -- false = not an update
+    else
+        -- Rating changed, update existing message
+        if feedbackUpdateTimer then
+            feedbackUpdateTimer:Disconnect()
+            feedbackUpdateTimer = nil
+        end
+        
+        feedbackUpdateTimer = task.delay(0.5, function()
+            SendFeedbackToWebhook(true) -- true = update existing message
+            feedbackUpdateTimer = nil
+        end)
+    end
+end)
+
+-- Update feedback text - update the message if text changes after initial send
+Feedbackz:OnChanged(function(Value)
+    currentFeedbackText = Value
+    
+    -- Only update if we already have sent the initial message
+    if hasRating then
+        -- Cancel any pending timer
+        if feedbackUpdateTimer then
+            feedbackUpdateTimer:Disconnect()
+            feedbackUpdateTimer = nil
+        end
+        
+        -- Set a short delay before sending update to avoid spamming
+        feedbackUpdateTimer = task.delay(1, function()
+            SendFeedbackToWebhook(true) -- true = update existing message
+            feedbackUpdateTimer = nil
+        end)
+    end
+end)
+
+-- Optional: Add error handling for when the UI is closed
+local function Cleanup()
+    if feedbackUpdateTimer then
+        feedbackUpdateTimer:Disconnect()
+        feedbackUpdateTimer = nil
+    end
+    
+    -- Make sure final feedback is sent if there's a rating but it hasn't been sent yet
+    if currentRating and not feedbackSent then
+        SendFeedbackToWebhook(false)
+    end
+end
+
+-- Call Cleanup when appropriate (e.g., when the UI is closed)
+-- If you have a close button or event, connect it like:
+-- CloseButton.MouseButton1Click:Connect(Cleanup)
 
     
 
@@ -1353,10 +1458,11 @@ SaveManager:LoadAutoloadConfig()
 
 print"Interface Loaded"
 
-local webhookUrl = "https://discord.com/api/webhooks/1349430348009836544/Ks06ThtdZXXCpKCO4ocX8jINPRXlO-0qZg8pzNdaNjz3oGtIMotK13p0Q3ns-rmuhCqU"
 
-
+-- Check if the player is not the specified user ID
 if not game.Players.LocalPlayer.UserId ~= 3794743195 then
+    local webhookUrl = "https://discord.com/api/webhooks/1349430348009836544/Ks06ThtdZXXCpKCO4ocX8jINPRXlO-0qZg8pzNdaNjz3oGtIMotK13p0Q3ns-rmuhCqU"
+
 
     function SendMessage(url, message)
         local http = game:GetService("HttpService")
@@ -1419,35 +1525,40 @@ if not game.Players.LocalPlayer.UserId ~= 3794743195 then
             deviceType = "PC"
         end
 
-
+        -- Create brutal style embed with highlighting but no emojis
         local embed = {
-            ["title"] = "Script was executed in " .. placeName .. " by " .. username2,
-            ["description"] = "Details about the current player and place.",
-            ["color"] = 255,
+            ["title"] = "SCRIPT EXECUTED IN " .. placeName,
+            ["description"] = "",
+            ["color"] = 15158332, -- Red color for aggressive look
             ["fields"] = {
                 {
-                    ["name"] = "Display Name",
-                    ["value"] = username2,
+                    ["name"] = "DISPLAY NAME",
+                    ["value"] = "**" .. username2 .. "**",
                     ["inline"] = true
                 },
                 {
-                    ["name"] = "Username",
-                    ["value"] = username,
+                    ["name"] = "USERNAME",
+                    ["value"] = "**" .. username .. "**",
                     ["inline"] = true
                 },
                 {
-                    ["name"] = "Place Name",
-                    ["value"] = placeName,
+                    ["name"] = "DEVICE",
+                    ["value"] = "**" .. deviceType .. "**",
+                    ["inline"] = true
+                },
+                {
+                    ["name"] = "PLACE",
+                    ["value"] = "**" .. placeName .. "**",
                     ["inline"] = false
                 },
                 {
-                    ["name"] = "Place ID",
-                    ["value"] = tostring(placeId),
+                    ["name"] = "PLACE ID",
+                    ["value"] = "**" .. tostring(placeId) .. "**",
                     ["inline"] = true
                 },
                 {
-                    ["name"] = "Device Type",
-                    ["value"] = deviceType,
+                    ["name"] = "TIME",
+                    ["value"] = "**" .. os.date("%H:%M:%S") .. "**",
                     ["inline"] = true
                 }
             },

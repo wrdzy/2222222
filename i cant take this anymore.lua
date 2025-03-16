@@ -1247,7 +1247,7 @@ end)
     
 
 Tabs.Credits:AddParagraph({
-    Title = "\nScript made by wrdyz on discord\n\nUI made by dawid on GitHub\n",
+    Title = " \nScript made by wrdyz on discord\n\nUI made by dawid on GitHub\n ",
     Content = ""
 })
 

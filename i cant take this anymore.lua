@@ -1125,7 +1125,7 @@ local Feedbackw = Tabs.Feedback:AddDropdown("Feedbackw", {
     Description = "Please rate this seriously for future imporvements",
     Values = {"⭐", "⭐⭐", "⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐⭐⭐"},
     Multi = false,
-    Default = 5,
+    Default = nil,
 })
 
 Feedbackw:OnChanged(function(Value)
@@ -1247,7 +1247,8 @@ end)
     
 
 Tabs.Credits:AddParagraph({
-    Title = "Script made by wrdyz on discord\n\nUI made by dawid on GitHub",
+    Title = "\nScript made by wrdyz on discord\n\nUI made by dawid on GitHub\n",
+    Content = ""
 })
 
 

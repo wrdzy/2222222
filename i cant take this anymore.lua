@@ -3,7 +3,7 @@
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-local Version = "1.2.0"
+local Version = "1.2.5"
 
 
 
@@ -1183,7 +1183,7 @@ end)
 
 local Feedbackw = Tabs.Feedback:AddDropdown("Feedbackw", {
     Title = "Rate this script",
-    Description = "Please rate this seriously for future imporvements",
+    Description = "Give an honest rating for future imporvements",
     Values = {"⭐", "⭐⭐", "⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐⭐⭐"},
     Multi = false,
     Default = nil,
@@ -1419,7 +1419,7 @@ Tabs.Credits:AddParagraph({
 
 Tabs.Credits:AddButton({
     Title = "Copy Discord Username",
-    Description = "Very important button",
+    Description = "",
     Callback = function()
         setclipboard("wrdyz") -- Replace with your actual Discord username
         Fluent:Notify({

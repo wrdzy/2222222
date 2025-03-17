@@ -127,7 +127,7 @@ local Options = Fluent.Options
 
     local Headsinput = secauto:AddInput("Autofarm threshold", {
         Title = "Autofarm threshold",
-        Description = "Don't go under 0.08 or you will get kicked.",
+        Description = "Below 0.08 will resault in a server kick.",
         Default = "0.1",
         Placeholder = "Placeholder",
         Numeric = true, -- Only allows numbers
@@ -1413,7 +1413,7 @@ end
     
 
 Tabs.Credits:AddParagraph({
-    Title = "Script made by wrdyz on discord",
+    Title = "Script made by wrdyz.94 on discord",
     Content = ""
 })
 
@@ -1421,7 +1421,7 @@ Tabs.Credits:AddButton({
     Title = "Copy Discord Username",
     Description = "",
     Callback = function()
-        setclipboard("wrdyz") -- Replace with your actual Discord username
+        setclipboard("wrdyz.94") -- Replace with your actual Discord username
         Fluent:Notify({
             Title = "Discord Username Copied",
             Content = "My discord username has been copied to clipboard",

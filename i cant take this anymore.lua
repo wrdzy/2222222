@@ -20,12 +20,13 @@ local Window = Fluent:CreateWindow({
 
 --Fluent provides Lucide Icons https://lucide.dev/icons/ for the tabs, icons are optional
 local Tabs = {
-    Main = Window:AddTab({ Title = "Main", Icon = "swords" }),
+    Player = Window:AddTab({ Title = "Player", Icon = "user" }),
+    Misc = Window:AddTab({ Title = "Misc", Icon = "hammer" }),
     Autofarm = Window:AddTab({ Title = "Autofarm", Icon = "repeat" }),
     AutoCrates = Window:AddTab({ Title = "Crates", Icon = "box" }),
     Teleport = Window:AddTab({ Title = "Teleport", Icon = "compass" }),
     Feedback = Window:AddTab({ Title = "Feedback", Icon = "star" }),
-    Credits = Window:AddTab({ Title = "Credits", Icon = "user" }),
+    Credits = Window:AddTab({ Title = "Credits", Icon = "book" }),
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
 
@@ -41,7 +42,7 @@ local Options = Fluent.Options
 
 
 
-    Tabs.Main:AddParagraph({
+    Tabs.Player:AddParagraph({
         Title = "Some features won't work together and you might get kicked.",
         Content = ""
     })
@@ -51,7 +52,7 @@ local Options = Fluent.Options
     
     
 
-    local secplayer = Tabs.Main:AddSection("Player")
+    local secplayer = Tabs.Player:AddSection("Player")
 
     
     local player = game.Players.LocalPlayer
@@ -419,85 +420,9 @@ end
 
 
 
+local secHitbox = Tabs.Misc:AddSection("Hitbox")
 
-
-
-
-
-
-local secmisc = Tabs.Main:AddSection("Misc")
-
-
-local brickk = secmisc:AddToggle("BrickToggle", {Title = "Big Brick", Description = "Brick on top of lava", Default = false})
-
-brickk:OnChanged(function()
-    if brickk.Value then
-        -- Define position and size when toggle is enabled
-        local position = Vector3.new(50, -47, 1000)
-        local size = Vector3.new(10000, 10, 10000) -- Massive brick
-        
-        -- Create the brick
-        local brick = Instance.new("Part")
-        brick.Size = size
-        brick.Position = position
-        brick.Anchored = true
-        brick.CanCollide = true
-        brick.Transparency = .5 -- Fully visible
-        brick.BrickColor = BrickColor.new("Bright orange")
-        brick.Name = "BigBrick" -- Set a unique name for the brick
-        brick.Parent = game.Workspace
-    else
-        -- Remove the brick if toggle is turned off
-        local existingBrick = game.Workspace:FindFirstChild("BigBrick") -- Use the name set earlier
-        if existingBrick then
-            existingBrick:Destroy()
-        end
-    end
-end)
-
-
-
-
-
-    -- -- Create Auto-Click ToggleA
-    -- local TeleportService = game:GetService("TeleportService")
-    -- local Players = game:GetService("Players")
-    -- local LocalPlayer = Players.LocalPlayer
-    
-    -- local Autorejoin = secmisc:AddToggle("Autorejoin", {Title = "Auto rejoin", Description = "Instantly rejoins when kicked", Default = false})
-    
-    -- Autorejoin:OnChanged(function()
-    --     if Autorejoin.Value then
-    --         -- Detect when the player is kicked by overriding the Kick function
-    --         local mt = getrawmetatable(game)
-    --         setreadonly(mt, false)
-    --         local oldNamecall = mt.__namecall
-    
-    --         mt.__namecall = newcclosure(function(self, ...)
-    --             local method = getnamecallmethod()
-    --             if method == "Kick" and self == LocalPlayer then
-    --                 task.spawn(function()
-    --                     TeleportService:Teleport(game.PlaceId) -- Instantly rejoin
-    --                 end)
-    --                 return
-    --             end
-    --             return oldNamecall(self, ...)
-    --         end)
-    
-    --         -- Handle teleport failure and attempt rejoin
-    --         LocalPlayer.OnTeleport:Connect(function(status)
-    --             if status == Enum.TeleportState.Failed then
-    --                 TeleportService:Teleport(game.PlaceId) -- Instantly attempt to rejoin
-    --             end
-    --         end)
-    --     end
-    -- end)
-    
-    
-
-    -- Options.Autorejoin:SetValue(false)
-
-    local Players = game:GetService("Players")
+local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
 -- Table to store original HumanoidRootPart sizes
@@ -605,7 +530,7 @@ for _, player in pairs(Players:GetPlayers()) do
 end
 
 -- UI Elements (Initialized AFTER variables are defined)
-local SliderHitboxSize = secmisc:AddSlider("SliderHitboxSize", {
+local SliderHitboxSize = secHitbox:AddSlider("SliderHitboxSize", {
     Title = "Hitbox Size",
     Description = "",
     Default = DefaultHitboxSize,
@@ -626,7 +551,7 @@ local SliderHitboxSize = secmisc:AddSlider("SliderHitboxSize", {
 SliderHitboxSize:SetValue(DefaultHitboxSize)
 
 -- Toggle to enable/disable hitbox resizing (AFTER slider)
-local ToggleHitboxResize = secmisc:AddToggle("ToggleHitboxResize", {
+local ToggleHitboxResize = secHitbox:AddToggle("ToggleHitboxResize", {
     Title = "Hitbox Expander",
     Default = false
 })
@@ -648,6 +573,82 @@ ToggleHitboxResize:OnChanged(function(Value)
         end
     end
 end)
+
+
+
+
+
+local secmisc = Tabs.Misc:AddSection("Misc")
+
+
+local brickk = secmisc:AddToggle("BrickToggle", {Title = "Big Brick", Description = "Brick on top of lava", Default = false})
+
+brickk:OnChanged(function()
+    if brickk.Value then
+        -- Define position and size when toggle is enabled
+        local position = Vector3.new(50, -47, 1000)
+        local size = Vector3.new(10000, 10, 10000) -- Massive brick
+        
+        -- Create the brick
+        local brick = Instance.new("Part")
+        brick.Size = size
+        brick.Position = position
+        brick.Anchored = true
+        brick.CanCollide = true
+        brick.Transparency = .5 -- Fully visible
+        brick.BrickColor = BrickColor.new("Bright orange")
+        brick.Name = "BigBrick" -- Set a unique name for the brick
+        brick.Parent = game.Workspace
+    else
+        -- Remove the brick if toggle is turned off
+        local existingBrick = game.Workspace:FindFirstChild("BigBrick") -- Use the name set earlier
+        if existingBrick then
+            existingBrick:Destroy()
+        end
+    end
+end)
+
+
+
+
+
+    -- -- Create Auto-Click ToggleA
+    -- local TeleportService = game:GetService("TeleportService")
+    -- local Players = game:GetService("Players")
+    -- local LocalPlayer = Players.LocalPlayer
+    
+    -- local Autorejoin = secmisc:AddToggle("Autorejoin", {Title = "Auto rejoin", Description = "Instantly rejoins when kicked", Default = false})
+    
+    -- Autorejoin:OnChanged(function()
+    --     if Autorejoin.Value then
+    --         -- Detect when the player is kicked by overriding the Kick function
+    --         local mt = getrawmetatable(game)
+    --         setreadonly(mt, false)
+    --         local oldNamecall = mt.__namecall
+    
+    --         mt.__namecall = newcclosure(function(self, ...)
+    --             local method = getnamecallmethod()
+    --             if method == "Kick" and self == LocalPlayer then
+    --                 task.spawn(function()
+    --                     TeleportService:Teleport(game.PlaceId) -- Instantly rejoin
+    --                 end)
+    --                 return
+    --             end
+    --             return oldNamecall(self, ...)
+    --         end)
+    
+    --         -- Handle teleport failure and attempt rejoin
+    --         LocalPlayer.OnTeleport:Connect(function(status)
+    --             if status == Enum.TeleportState.Failed then
+    --                 TeleportService:Teleport(game.PlaceId) -- Instantly attempt to rejoin
+    --             end
+    --         end)
+    --     end
+    -- end)
+    
+    
+
+    -- Options.Autorejoin:SetValue(false)
 
 
 
@@ -1012,7 +1013,7 @@ end)
 
 Options.ToggleCrate:SetValue(false)
 
-local UItogglecrate = seccrate:AddToggle("UItogglecrate", {Title = "Crate Ui", Default = false })
+local UItogglecrate = seccrate:AddToggle("UItogglecrate", {Title = "Disable Crate Ui", Default = false })
 
 UItogglecrate:OnChanged(function()
     while UItogglecrate.Value do
@@ -1412,8 +1413,34 @@ end
     
 
 Tabs.Credits:AddParagraph({
-    Title = " \nScript made by wrdyz on discord\n\nUI made by dawid on GitHub\n ",
+    Title = "Script made by wrdyz on discord",
     Content = ""
+})
+
+Tabs.Credits:AddButton({
+    Title = "Copy Discord Username",
+    Description = "Very important button",
+    Callback = function()
+        setclipboard("wrdyz") -- Replace with your actual Discord username
+        Fluent:Notify({
+            Title = "Discord Username Copied",
+            Content = "My discord username has been copied to clipboard",
+            Duration = 3
+        })
+    end
+})
+
+Tabs.Credits:AddButton({
+    Title = "Copy Discord Server Link",
+    Description = "Very old server i made a while ago",
+    Callback = function()
+        setclipboard("https://discord.gg/PWJ4cguJDb")
+        Fluent:Notify({
+            Title = "Discord Server Link Copied",
+            Content = "My discord Server Link has been copied to clipboard",
+            Duration = 3
+        })
+    end
 })
 
 

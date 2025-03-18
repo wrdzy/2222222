@@ -3,7 +3,7 @@
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-local Version = "1.2.5"
+local Version = "1.3.0"
 
 
 
@@ -65,7 +65,7 @@ local Options = Fluent.Options
         Description = "",
         Default = 30,
         Min = 30,
-        Max = 120,
+        Max = 200,
         Rounding = 1,
         Callback = function(Value)
             humanoid.WalkSpeed = Value
@@ -80,7 +80,7 @@ local Options = Fluent.Options
         Description = "",
         Default = 50,
         Min = 50,
-        Max = 150,
+        Max = 300,
         Rounding = 1,
         Callback = function(Value)
             humanoid.UseJumpPower = true
@@ -422,6 +422,12 @@ end
 
 local secHitbox = Tabs.Misc:AddSection("Hitbox")
 
+local hitcolor = secHitbox:AddColorpicker("hitcolor", {
+    Title = "Hitbox color",
+    Transparency = 0,
+    Default = Color3.fromRGB(255, 0, 0)
+})
+
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
@@ -469,8 +475,14 @@ local function ResizeHitboxesForPlayer(player)
                 hitboxVisualizer.Name = "HitboxVisualizer"
                 hitboxVisualizer.Adornee = humanoidRootPart
                 hitboxVisualizer.Parent = humanoidRootPart
-                hitboxVisualizer.Color3 = Color3.fromRGB(255, 0, 0)  -- Change outline color
-                hitboxVisualizer.SurfaceColor3 = Color3.fromRGB(255, 0, 0)
+
+                -- Set initial color when visualizer is created
+                local color = hitcolor.Value
+                local r, g, b = math.floor(color.R * 255), math.floor(color.G * 255), math.floor(color.B * 255)
+                
+                hitboxVisualizer.Color3 = Color3.fromRGB(r, g, b)
+                hitboxVisualizer.SurfaceColor3 = Color3.fromRGB(r, g, b)
+                
                 hitboxVisualizer.SurfaceTransparency = 1 -- Outline only
                 hitboxVisualizer.LineThickness = 0.1
             end
@@ -503,6 +515,27 @@ local function ApplyHitboxResizing()
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
             ResizeHitboxesForPlayer(player)
+        end
+    end
+end
+
+-- Function to update the color of the hitbox visualizer for all players
+local function UpdateHitboxColor()
+    local color = hitcolor.Value
+    local r, g, b = math.floor(color.R * 255), math.floor(color.G * 255), math.floor(color.B * 255)
+
+    -- Iterate through all players and update their visualizers
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+            if humanoidRootPart then
+                local hitboxVisualizer = humanoidRootPart:FindFirstChild("HitboxVisualizer")
+                if hitboxVisualizer then
+                    hitboxVisualizer.Color3 = Color3.fromRGB(r, g, b)
+                    hitboxVisualizer.SurfaceColor3 = Color3.fromRGB(r, g, b)
+                    hitboxVisualizer.Transparency = hitcolor.Transparency
+                end
+            end
         end
     end
 end
@@ -573,6 +606,13 @@ ToggleHitboxResize:OnChanged(function(Value)
         end
     end
 end)
+
+-- Update color whenever the colorpicker value changes
+hitcolor:OnChanged(function()
+    UpdateHitboxColor()
+end)
+
+
 
 
 

@@ -1229,31 +1229,60 @@ local Feedbackw = Tabs.Feedback:AddDropdown("Feedbackw", {
     Default = nil,
 })
 
+
 local Feedbackz = Tabs.Feedback:AddInput("Feedbackz", {
-    Title = "Reason for rating",
+    Title = "Reason for rating (optional)",
     Default = "",
     Placeholder = "Give us your feedback",
-    Numeric = false, -- Only allows numbers
-    Finished = true, -- Only calls callback when you press enter
+    Numeric = false,
+    Finished = false, -- Changed to false to capture input as it's typed
     Callback = function(Value)
+        currentFeedbackText = Value -- Make sure to update the value in the callback
     end
 })
 
 -- Variables to store current feedback state
 local currentRating = nil
 local currentFeedbackText = ""
-local messageId = nil -- To store the ID of the sent message for updates
-local hasRating = false
-local feedbackUpdateTimer = nil
 local feedbackSent = false
 
-local function SendFeedbackToWebhook(isUpdate)
+-- Function to send feedback to webhook
+local function SendFeedbackToWebhook()
+    -- Don't send if feedback was already sent
+    if feedbackSent then     
+        Fluent:Notify({
+            Title = "Feedback Already Sent",
+            Content = "You have already submitted feedback",
+            SubContent = "",
+            Duration = 3
+        })
+        return 
+    end
+    
     -- Don't send if we don't have a rating
-    if not currentRating then return end
+    if not currentRating then
+        Fluent:Notify({
+            Title = "Star Rating Required",
+            Content = "Please select a star rating before submitting",
+            SubContent = "",
+            Duration = 3
+        })
+        return
+    end
+    
+    -- Debug print to check values before sending
+    print("Rating:", currentRating)
+    print("Comment:", currentFeedbackText)
     
     local webhookUrl = "https://discord.com/api/webhooks/1350787764874121217/Jv3AwSgD-viEpIu8cfjEm1MxFqJ62e9kEdIyDVKuf4gH2Hl6Hf3fwBJHok3Qouhwo3TE"
     
     local function CreateEmbed()
+        -- Get the latest comment text directly from the input field
+        local feedbackText = Feedbackz.Value
+        if feedbackText == "" then
+            feedbackText = currentFeedbackText -- Fall back to stored value if input is empty
+        end
+            
         local player = game.Players.LocalPlayer
         local username = player.Name
         local username2 = player.DisplayName
@@ -1269,7 +1298,7 @@ local function SendFeedbackToWebhook(isUpdate)
             deviceType = "PC"
         end
 
-        -- Create a subtle embed
+        -- Create embed
         return {
             ["title"] = "Feedback: " .. placeName,
             ["description"] = "Feedback from " .. username2,
@@ -1297,7 +1326,7 @@ local function SendFeedbackToWebhook(isUpdate)
                 },
                 {
                     ["name"] = "Comments",
-                    ["value"] = currentFeedbackText ~= "" and currentFeedbackText or "No comments provided",
+                    ["value"] = feedbackText ~= "" and feedbackText or "No comments provided",
                     ["inline"] = false
                 },
                 {
@@ -1318,139 +1347,76 @@ local function SendFeedbackToWebhook(isUpdate)
         ["Content-Type"] = "application/json"
     }
     
-    -- For initial send
-    if not isUpdate or not messageId then
-        local data = {
-            ["embeds"] = { CreateEmbed() }
-        }
+    local data = {
+        ["embeds"] = { CreateEmbed() }
+    }
+    
+    local body = http:JSONEncode(data)
+    
+    -- Use pcall to handle potential errors
+    local success, response = pcall(function()
+        return request({
+            Url = webhookUrl,
+            Method = "POST",
+            Headers = headers,
+            Body = body
+        })
+    end)
+    
+    if success then
+        feedbackSent = true
         
-        local body = http:JSONEncode(data)
+        -- Show notification
+        Fluent:Notify({
+            Title = "Thank you",
+            Content = "Your feedback has been submitted",
+            SubContent = "",
+            Duration = 3
+        })
         
-        -- Use pcall to handle potential errors
-        local success, response = pcall(function()
-            return request({
-                Url = webhookUrl,
-                Method = "POST",
-                Headers = headers,
-                Body = body
-            })
-        end)
-        
-        if success and response then
-            -- Try to parse the response to get the message ID
-            local success2, responseData = pcall(function()
-                return http:JSONDecode(response.Body)
-            end)
-            
-            if success2 and responseData and responseData.id then
-                messageId = responseData.id
-                print("Initial feedback sent, message ID: " .. messageId)
-            else
-                print("Feedback sent, but couldn't get message ID")
-            end
-            
-            feedbackSent = true
-            
-            -- Show notification only on initial send
-            Fluent:Notify({
-                Title = "Thank you",
-                Content = "Your feedback has been received",
-                SubContent = "",
-                Duration = 3
-            })
-        else
-            print("Error sending feedback:", response)
-        end
+        -- Disable the inputs after submission
+
     else
-        -- For updates to existing message
-        local updateUrl = webhookUrl .. "/messages/" .. messageId
+        print("Error sending feedback:", response)
         
-        local data = {
-            ["embeds"] = { CreateEmbed() }
-        }
-        
-        local body = http:JSONEncode(data)
-        
-        -- Use pcall to handle potential errors
-        local success, response = pcall(function()
-            return request({
-                Url = updateUrl,
-                Method = "PATCH", -- Use PATCH to update existing message
-                Headers = headers,
-                Body = body
-            })
-        end)
-        
-        if success then
-            print("Feedback updated")
-        else
-            print("Error updating feedback:", response)
-            -- If update fails, try sending as new message
-            SendFeedbackToWebhook(false)
-        end
+        Fluent:Notify({
+            Title = "Error",
+            Content = "Failed to send feedback. Please try again later.",
+            SubContent = "",
+            Duration = 3
+        })
     end
 end
 
--- Update rating - send immediately when stars are selected
+-- Store the values when changed
 Feedbackw:OnChanged(function(Value)
     currentRating = Value
-    
-    if not hasRating then
-        -- First time rating, send initial message
-        hasRating = true
-        SendFeedbackToWebhook(false) -- false = not an update
-    else
-        -- Rating changed, update existing message
-        if feedbackUpdateTimer then
-            feedbackUpdateTimer:Disconnect()
-            feedbackUpdateTimer = nil
-        end
-        
-        feedbackUpdateTimer = task.delay(0.5, function()
-            SendFeedbackToWebhook(true) -- true = update existing message
-            feedbackUpdateTimer = nil
-        end)
-    end
 end)
 
--- Update feedback text - update the message if text changes after initial send
 Feedbackz:OnChanged(function(Value)
     currentFeedbackText = Value
-    
-    -- Only update if we already have sent the initial message
-    if hasRating then
-        -- Cancel any pending timer
-        if feedbackUpdateTimer then
-            feedbackUpdateTimer:Disconnect()
-            feedbackUpdateTimer = nil
-        end
-        
-        -- Set a short delay before sending update to avoid spamming
-        feedbackUpdateTimer = task.delay(1, function()
-            SendFeedbackToWebhook(true) -- true = update existing message
-            feedbackUpdateTimer = nil
-        end)
-    end
+    print("Feedback text updated:", Value) -- Debug print
 end)
 
--- Optional: Add error handling for when the UI is closed
-local function Cleanup()
-    if feedbackUpdateTimer then
-        feedbackUpdateTimer:Disconnect()
-        feedbackUpdateTimer = nil
+-- Add the submit button
+local SubmitButton = Tabs.Feedback:AddButton({
+    Title = "Submit Feedback",
+    Description = "Send your rating and comments",
+    Callback = function()
+        SendFeedbackToWebhook()
     end
-    
-    -- Make sure final feedback is sent if there's a rating but it hasn't been sent yet
-    if currentRating and not feedbackSent then
-        SendFeedbackToWebhook(false)
-    end
-end
+})
 
 -- Call Cleanup when appropriate (e.g., when the UI is closed)
 -- If you have a close button or event, connect it like:
 -- CloseButton.MouseButton1Click:Connect(Cleanup)
 
     
+
+
+
+
+
 
 Tabs.Credits:AddParagraph({
     Title = "Script made by wrdyz.94 on discord",

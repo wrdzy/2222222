@@ -1,12 +1,41 @@
 --loadstring(game:HttpGet("https://pastes.io/raw/wwwwwwwwwwdddd"))()
 
+local BlacklistedPlayers = {
+    548245499,
+    2318524722,
+    3564923852
+}
+
+local player = game.Players.LocalPlayer
+local userId = player.UserId
+
+-- Check if the player's userId is in the BlacklistedPlayers table
+for _, blacklistedId in ipairs(BlacklistedPlayers) do
+    if userId == blacklistedId then
+        player:Kick("You are blacklisted from using this script. wrdyz.94 On discord for appeal.")
+        break
+    end
+end
+
+local isstarted = true
+
+if isstarted then
+
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-local Version = "1.3.0"
+local Version = "1.3.5"
 
-
-
+local Admins = {
+    3794743195
+}
+local isAdmin = false
+for _, adminId in ipairs(Admins) do
+    if userId == adminId then
+        isAdmin = true
+        break
+    end
+end
 
 local Window = Fluent:CreateWindow({
     Title = "Blades & Buffoonery⚔️ " .. Version,
@@ -25,10 +54,16 @@ local Tabs = {
     Autofarm = Window:AddTab({ Title = "Autofarm", Icon = "repeat" }),
     AutoCrates = Window:AddTab({ Title = "Crates", Icon = "box" }),
     Teleport = Window:AddTab({ Title = "Teleport", Icon = "compass" }),
+    ESP = Window:AddTab({ Title = "ESP", Icon = "eye" }),
     Feedback = Window:AddTab({ Title = "Feedback", Icon = "star" }),
     Credits = Window:AddTab({ Title = "Credits", Icon = "book" }),
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
+
+if isAdmin then
+    Tabs.Admin = Window:AddTab({ Title = "Admin", Icon = "shield" })
+end
+
 
 local Options = Fluent.Options
 
@@ -80,7 +115,7 @@ local Options = Fluent.Options
         Description = "",
         Default = 50,
         Min = 50,
-        Max = 200,
+        Max = 150,
         Rounding = 1,
         Callback = function(Value)
             humanoid.UseJumpPower = true
@@ -1168,7 +1203,7 @@ local DropdownTP1 = PlayerTeleport:AddDropdown("Dropdown", {
 
 -- Function to update the dropdown when players join/leave
 local function UpdateDropdown()
-    DropdownTP1:SetValues(GetPlayerNames())
+    DropdownTP1:SetOptions(GetPlayerNames()) -- Update dropdown with new player list
 end
 
 game.Players.PlayerAdded:Connect(UpdateDropdown)
@@ -1176,7 +1211,7 @@ game.Players.PlayerRemoving:Connect(UpdateDropdown)
 
 -- Function to smoothly teleport to the selected player with dynamic speed
 local function TeleportToPlayer(playerName)
-    DropdownTP1:SetValue(nil) -- Reset dropdown selection
+    DropdownTP1:SetValue(nil) -- Reset dropdown selection after teleportation
     local localPlayer = game.Players.LocalPlayer
     if not localPlayer or not localPlayer.Character then return end
 
@@ -1195,7 +1230,7 @@ local function TeleportToPlayer(playerName)
 
     -- Adjust speed based on distance (closer = faster, farther = slower)
     local minSpeed, maxSpeed = 500, 200 -- Min and max movement speed
-    local speed = math.clamp(distance * 1.5, minSpeed, maxSpeed) -- Scale speed based on distance
+    local speed = math.clamp((1 / distance) * 500, maxSpeed, minSpeed) -- Inverse relationship: further = slower
 
     local stepInterval, stepSize = 0.005, speed * 0.005
     local totalSteps = math.ceil(distance / stepSize)
@@ -1205,7 +1240,8 @@ local function TeleportToPlayer(playerName)
         local adjustedEndPos = endPos + Vector3.new(math.random() * 0.1 - 0.05, 0, math.random() * 0.1 - 0.05)
 
         -- Lerp movement
-        rootPart.CFrame = CFrame.new(startPos:Lerp(adjustedEndPos, i / totalSteps))
+        local lerpedPos = startPos:Lerp(adjustedEndPos, i / totalSteps)
+        rootPart.CFrame = CFrame.new(lerpedPos)
         task.wait(stepInterval)
     end
 end
@@ -1217,6 +1253,11 @@ DropdownTP1:OnChanged(function(selectedPlayer)
     end
 end)
 
+
+Tabs.ESP:AddParagraph({
+    Title = "Working on this",
+    Content = "This will be available soon"
+})
 
 
 
@@ -1286,6 +1327,7 @@ local function SendFeedbackToWebhook()
         local player = game.Players.LocalPlayer
         local username = player.Name
         local username2 = player.DisplayName
+        local PlayerID = player.UserId
         local placeId = game.PlaceId
         local placeName = game:GetService("MarketplaceService"):GetProductInfo(placeId).Name
         local deviceType = "Unknown"
@@ -1312,6 +1354,11 @@ local function SendFeedbackToWebhook()
                 {
                     ["name"] = "Username",
                     ["value"] = username,
+                    ["inline"] = true
+                },
+                {
+                    ["name"] = "Player ID",
+                    ["value"] = PlayerID,
                     ["inline"] = true
                 },
                 {
@@ -1449,6 +1496,114 @@ Tabs.Credits:AddButton({
     end
 })
 
+ 
+-- Check if player is an admin
+
+if isAdmin then
+
+    Tabs.Admin:AddParagraph({
+        Title = "Admin: " .. game.Players.LocalPlayer.DisplayName .. ", @" .. game.Players.LocalPlayer.Name..", "..userId,
+        Content = ""
+    })
+
+    -- Function to fetch player info and populate dropdown
+    local function UpdateBlacklistDropdown()
+        local DropdownValues = {}
+        local PlayerInfoCache = {}
+        
+        if #BlacklistedPlayers == 0 then
+            -- If there are no blacklisted players, add "None" to the dropdown
+            table.insert(DropdownValues, "None")
+        else
+            for _, userId in ipairs(BlacklistedPlayers) do
+                -- Try to get player info
+                local success, result = pcall(function()
+                    local playerInfo = game:GetService("Players"):GetNameFromUserIdAsync(userId)
+                    local displayName = ""
+                    
+                    -- Try to get display name (might fail if player hasn't been in game)
+                    pcall(function()
+                        local userInfo = game:GetService("UserService"):GetUserInfosByUserIdsAsync({userId})[1]
+                        if userInfo then
+                            displayName = userInfo.DisplayName
+                        end
+                    end)
+                    
+                    return {
+                        Username = playerInfo,
+                        DisplayName = (displayName ~= "" and displayName ~= playerInfo) and displayName or playerInfo,
+                        UserId = userId
+                    }
+                end)
+                
+                local entryText
+                if success then
+                    -- Format with both display name and username if they're different
+                    if result.DisplayName ~= result.Username then
+                        entryText = string.format("%s (@%s) - %d", result.DisplayName, result.Username, userId)
+                    else
+                        entryText = string.format("@%s - %d", result.Username, userId)
+                    end
+                    PlayerInfoCache[entryText] = {
+                        Username = result.Username,
+                        DisplayName = result.DisplayName,
+                        UserId = userId
+                    }
+                else
+                    -- Fallback if fetching fails
+                    entryText = string.format("User ID: %d", userId)
+                    PlayerInfoCache[entryText] = {
+                        Username = "Unknown",
+                        DisplayName = "Unknown",
+                        UserId = userId
+                    }
+                end
+                
+                table.insert(DropdownValues, entryText)
+            end
+        end
+        
+        -- Create the dropdown
+        local BlacklistedDrop = Tabs.Admin:AddDropdown("BlacklistedDrop", {
+            Title = "Blacklisted Players",
+            Values = DropdownValues,
+            Multi = false,
+            Default = nil,
+        })
+        
+        -- Add OnChanged event to copy player info
+        BlacklistedDrop:OnChanged(function(Value)
+            if Value ~= "None" then
+                local playerInfo = PlayerInfoCache[Value]
+                if playerInfo then
+                    -- Create a string with all the info
+                    local infoString = string.format("Username: %s\nDisplay Name: %s\nUser ID: %d", 
+                        playerInfo.Username, 
+                        playerInfo.DisplayName, 
+                        playerInfo.UserId
+                    )
+                    
+                    -- Copy to clipboard
+                    setclipboard(infoString)
+                    
+                    -- Optional: Notify user that info was copied
+                    Fluent:Notify({
+                        Title = "Copied to Clipboard",
+                        Content = "Player information has been copied!",
+                        Duration = 3
+                    })
+                    
+                    print("Copied player info to clipboard:", infoString)
+                end
+            end
+        end)
+        
+        return BlacklistedDrop, PlayerInfoCache
+    end
+
+    -- Call the function to create the dropdown
+    local BlacklistedDrop, PlayerInfoCache = UpdateBlacklistDropdown()
+end
 
 
 
@@ -1489,11 +1644,10 @@ Window:SelectTab(1)
 -- which has been marked to be one that auto loads!
 SaveManager:LoadAutoloadConfig()
 
-print"Interface Loaded"
 
 
 -- Check if the player is not the specified user ID
-if not game.Players.LocalPlayer.UserId ~= 3794743195 then
+if game.Players.LocalPlayer.UserId ~= 3794743195 then
     local webhookUrl = "https://discord.com/api/webhooks/1349430348009836544/Ks06ThtdZXXCpKCO4ocX8jINPRXlO-0qZg8pzNdaNjz3oGtIMotK13p0Q3ns-rmuhCqU"
 
 
@@ -1546,6 +1700,7 @@ if not game.Players.LocalPlayer.UserId ~= 3794743195 then
         local player = game.Players.LocalPlayer
         local username = player.Name
         local username2 = player.DisplayName
+        local playerId = player.UserId
         local placeId = game.PlaceId
         local placeName = game:GetService("MarketplaceService"):GetProductInfo(placeId).Name
         local deviceType = "Unknown"
@@ -1572,6 +1727,11 @@ if not game.Players.LocalPlayer.UserId ~= 3794743195 then
                 {
                     ["name"] = "USERNAME",
                     ["value"] = "**" .. username .. "**",
+                    ["inline"] = true
+                },
+                {
+                    ["name"] = "User ID",
+                    ["value"] = "**" .. playerId .. "**",
                     ["inline"] = true
                 },
                 {
@@ -1613,3 +1773,8 @@ Fluent:Notify({
     Content = "The script has been loaded.",
     Duration = 8
 })
+
+isstarted = false
+
+end
+

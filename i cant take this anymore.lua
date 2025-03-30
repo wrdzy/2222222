@@ -24,7 +24,7 @@ if isstarted then
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-local Version = "vers. 1.4.0"
+local Version = "1.4.0"
 
 local Admins = {
     8205778977
@@ -39,7 +39,7 @@ end
 
 local Window = Fluent:CreateWindow({
     Title = "Blades & Buffoonery⚔️ " .. Version,
-    SubTitle = "(Auto Updt vers.) by wrdyz.94",
+    SubTitle = "(Auto updt vers.) by wrdyz.94",
     TabWidth = 100,
     Size = UDim2.fromOffset(550, 400),
     Acrylic = false, -- The blur may be detectable, setting this to false disables blur entirely
@@ -78,7 +78,7 @@ local Options = Fluent.Options
 
 
     Tabs.Player:AddParagraph({
-        Title = "Some features won't work together and you might get kicked.",
+        Title = "Some features might not work together correctly.",
         Content = ""
     })
 

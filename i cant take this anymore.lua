@@ -44,7 +44,8 @@ local Window = Fluent:CreateWindow({
     Size = UDim2.fromOffset(550, 400),
     Acrylic = false, -- The blur may be detectable, setting this to false disables blur entirely
     Theme = "Darker",
-    MinimizeKey = Enum.KeyCode.U -- Used when theres no MinimizeKeybind
+    Transparency = "false",
+    MinimizeKey = Enum.KeyCode.LeftControl -- Used when theres no MinimizeKeybind
 })
 
 --Fluent provides Lucide Icons https://lucide.dev/icons/ for the tabs, icons are optional
@@ -650,7 +651,7 @@ end)
 local secmisc = Tabs.Misc:AddSection("Misc")
 
 
-local brickk = secmisc:AddToggle("BrickToggle", {Title = "Big Brick", Description = "Brick on top of lava", Default = false})
+local brickk = secmisc:AddToggle("BrickToggle", {Title = "Anti Kill Brick", Description = "", Default = false})
 
 brickk:OnChanged(function()
     if brickk.Value then
@@ -860,17 +861,19 @@ local function fireHitEvent()
         end
         
         -- Safely attempt to fire hit event
+        -- Safely attempt to fire hit event
         local _, bossHumanoid = getBoss()
-        if bossHumanoid and player.Character and player.Character:FindFirstChild("PoolNoodle") then
-            local hitEvent = player.Character.PoolNoodle:FindFirstChild("Events") and 
-                            player.Character.PoolNoodle.Events:FindFirstChild("Hit")
-                            
-            if hitEvent then
-                pcall(function()
-                    hitEvent:FireServer(bossHumanoid)
-                end)
-            end
-        end
+        local weapon = player.Character and player.Character:FindFirstChildOfClass("Tool")
+            if bossHumanoid and player.Character and weapon then
+                    local hitEvent = weapon:FindFirstChild("Events") and 
+                    weapon.Events:FindFirstChild("Hit")
+                    
+    if hitEvent then
+        pcall(function()
+            hitEvent:FireServer(bossHumanoid)
+        end)
+    end
+end
         
         task.wait(0.1)  -- Small delay to prevent event spam
     end

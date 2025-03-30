@@ -657,7 +657,7 @@ brickk:OnChanged(function()
     if brickk.Value then
         -- Define position and size when toggle is enabled
         local position = Vector3.new(50, -47, 1000)
-        local size = Vector3.new(9999999, 10, 9999999) -- Massive brick
+        local size = Vector3.new(9999999999999999999999999999, 10, 99999999999999999999999) -- Massive brick
         
         -- Create the brick
         local brick = Instance.new("Part")
@@ -666,7 +666,7 @@ brickk:OnChanged(function()
         brick.Anchored = true
         brick.CanCollide = true
         brick.Transparency = .5 -- Fully visible
-        brick.BrickColor = BrickColor.new("Bright orange")
+        brick.BrickColor = BrickColor.new("Dark grey")
         brick.Name = "BigBrick" -- Set a unique name for the brick
         brick.Parent = game.Workspace
     else

@@ -1071,7 +1071,10 @@ StepValue:OnChanged(function()
 end)
 
 -- 📌 Toggle for Autofarm
-local TTPM = secauto2:AddToggle("TTPM", {Title = "Autofarm boxes (Speed depends on FPS)", Default = false})
+local TTPM = secauto2:AddToggle("TTPM", {
+    Title = "Autofarm boxes ", 
+    Description = "Performance may vary based on your FPS.",
+    Default = false})
 
 -- Add the missing GetDistance function if it's not defined elsewhere
 local function GetDistance(pos1, pos2)
@@ -1950,4 +1953,3 @@ Fluent:Notify({
 isstarted = false
 
 end
-

@@ -770,6 +770,8 @@ end)
 
 
 local secautoBoss = Tabs.Autofarm:AddSection("Boss")
+
+
 local AutofarmBoss = secautoBoss:AddToggle("AutofarmBoss", {Title = "Autofarm Boss", Default = false})
 local player = game:GetService("Players").LocalPlayer
 local hitEventThread = nil
@@ -801,7 +803,9 @@ local function lerpToBoss()
     while AutofarmBoss.Value and isRunning do
         -- Safety check to prevent crashing
         if not isBossSpawned() then
-            AutofarmBoss:SetValue(false)
+            task.defer(function()
+                AutofarmBoss:SetValue(false)
+            end)
             Fluent:Notify({
                 Title = "Autofarm Boss",
                 Content = "Boss disappeared, disabling autofarm.",
@@ -839,7 +843,9 @@ local function fireHitEvent()
     while AutofarmBoss.Value and isRunning do
         -- Safety check to prevent crashing
         if not isBossSpawned() then
-            AutofarmBoss:SetValue(false)
+            task.defer(function()
+                AutofarmBoss:SetValue(false)
+            end)
             Fluent:Notify({
                 Title = "Autofarm Boss",
                 Content = "Boss despawned.",
@@ -851,7 +857,9 @@ local function fireHitEvent()
         -- Check if player has weapon
         local weapon = player.Character and player.Character:FindFirstChildOfClass("Tool")
         if not weapon then
-            AutofarmBoss:SetValue(false)
+            task.defer(function()
+                AutofarmBoss:SetValue(false)
+            end)
             Fluent:Notify({
                 Title = "Autofarm Boss",
                 Content = "Weapon not found.",
@@ -881,7 +889,9 @@ end
 -- Function to handle player death
 local function handlePlayerDeath()
     if AutofarmBoss.Value then
-        AutofarmBoss:SetValue(false)
+        task.defer(function()
+            AutofarmBoss:SetValue(false)
+        end)
         Fluent:Notify({
             Title = "Autofarm Boss",
             Content = "Disabled due to death.",
@@ -914,10 +924,12 @@ end)
 
 workspace.ChildRemoved:Connect(function(child)
     if child.Name == "Boss" and AutofarmBoss.Value then
-        AutofarmBoss:SetValue(false)
+        task.defer(function()
+            AutofarmBoss:SetValue(false)
+        end)
         Fluent:Notify({
             Title = "Autofarm Boss",
-            Content = "Boss despawned, disabling autofarm.",
+            Content = "Boss despawned",
             Duration = 5
         })
     end
@@ -927,7 +939,9 @@ end)
 task.spawn(function()
     while wait(1) do  -- Check every second
         if AutofarmBoss.Value and not isBossSpawned() then
-            AutofarmBoss:SetValue(false)
+            task.defer(function()
+                AutofarmBoss:SetValue(false)
+            end)
             Fluent:Notify({
                 Title = "Autofarm Boss",
                 Content = "Boss not found, disabling autofarm.",
@@ -940,12 +954,16 @@ end)
 -- Handle AutofarmBoss toggle
 AutofarmBoss:OnChanged(function()
     if AutofarmBoss.Value then
-        -- Check if boss exists first - immediately toggle off if not
+        -- Immediately check if boss exists - toggle off if not
         if not isBossSpawned() then
-            AutofarmBoss:SetValue(false)
+            -- Use task.defer to prevent toggle recursion
+            task.defer(function()
+                AutofarmBoss:SetValue(false)
+            end)
+            
             Fluent:Notify({
                 Title = "Autofarm Boss",
-                Content = "Boss not spawned yet.",
+                Content = "Boss not found.",
                 Duration = 5
             })
             return
@@ -954,7 +972,11 @@ AutofarmBoss:OnChanged(function()
         -- Check if player has a weapon
         local weapon = player.Character and player.Character:FindFirstChildOfClass("Tool")
         if not weapon then
-            AutofarmBoss:SetValue(false)
+            -- Use task.defer to prevent toggle recursion
+            task.defer(function()
+                AutofarmBoss:SetValue(false)
+            end)
+            
             Fluent:Notify({
                 Title = "Autofarm Boss",
                 Content = "Weapon not found.",

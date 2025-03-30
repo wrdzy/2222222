@@ -153,10 +153,10 @@ local Options = Fluent.Options
     end)
 
 
-    Tabs.Autofarm:AddParagraph({
-        Title = "Disable everything from player section before enabling this.",
-        Content = ""
-    })
+    -- Tabs.Autofarm:AddParagraph({
+    --     Title = "Disable everything from player section before enabling this.",
+    --     Content = ""
+    -- })
 
     -- local secauto = Tabs.Autofarm:AddSection("Heads")
 
@@ -841,7 +841,7 @@ local function fireHitEvent()
             AutofarmBoss:SetValue(false)
             Fluent:Notify({
                 Title = "Autofarm Boss",
-                Content = "Boss disappeared, disabling autofarm.",
+                Content = "Boss despawned.",
                 Duration = 5
             })
             break
@@ -853,7 +853,7 @@ local function fireHitEvent()
             AutofarmBoss:SetValue(false)
             Fluent:Notify({
                 Title = "Autofarm Boss",
-                Content = "Weapon not found, disabling autofarm.",
+                Content = "Weapon not found.",
                 Duration = 5
             })
             break
@@ -1189,6 +1189,7 @@ end
 
 -- 📌 Function to start teleport loop
 local function StartTeleportLoop()
+    AutofarmBoss:SetValue(false)
     if teleporting then return end
     teleporting = true
 

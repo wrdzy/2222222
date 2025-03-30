@@ -39,7 +39,7 @@ end
 
 local Window = Fluent:CreateWindow({
     Title = "Blades & Buffoonery⚔️ " .. Version,
-    SubTitle = "(Auto updt vers.) by wrdyz.94",
+    SubTitle = "(auto updt vers.) by wrdyz.94",
     TabWidth = 100,
     Size = UDim2.fromOffset(550, 400),
     Acrylic = false, -- The blur may be detectable, setting this to false disables blur entirely

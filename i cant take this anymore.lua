@@ -24,10 +24,10 @@ if isstarted then
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-local Version = "1.3.5"
+local Version = "vers. 1.3.5"
 
 local Admins = {
-    3794743195
+    8205778977
 }
 local isAdmin = false
 for _, adminId in ipairs(Admins) do
@@ -39,7 +39,7 @@ end
 
 local Window = Fluent:CreateWindow({
     Title = "Blades & Buffoonery⚔️ " .. Version,
-    SubTitle = "by wrdyz.94",
+    SubTitle = "(Auto Updt vers.) by wrdyz.94",
     TabWidth = 100,
     Size = UDim2.fromOffset(550, 400),
     Acrylic = false, -- The blur may be detectable, setting this to false disables blur entirely
@@ -115,7 +115,7 @@ local Options = Fluent.Options
         Description = "",
         Default = 50,
         Min = 50,
-        Max = 150,
+        Max = 200,
         Rounding = 1,
         Callback = function(Value)
             humanoid.UseJumpPower = true
@@ -158,124 +158,124 @@ local Options = Fluent.Options
         Content = ""
     })
 
-    local secauto = Tabs.Autofarm:AddSection("Heads")
+    -- local secauto = Tabs.Autofarm:AddSection("Heads")
 
-    local Headsinput = secauto:AddInput("Autofarm threshold", {
-        Title = "Autofarm threshold",
-        Description = "Below 0.08 will resault in a server kick.",
-        Default = "0.1",
-        Placeholder = "Placeholder",
-        Numeric = true, -- Only allows numbers
-        Finished = true, -- Only calls callback when you press enter
-        -- Callback = function(numberthreshold)
-        --     print("Input changed:", numberthreshold)
-        -- end
-    })
+    -- local Headsinput = secauto:AddInput("Autofarm threshold", {
+    --     Title = "Autofarm threshold",
+    --     Description = "Below 0.08 will resault in a server kick.",
+    --     Default = "0.1",
+    --     Placeholder = "Placeholder",
+    --     Numeric = true, -- Only allows numbers
+    --     Finished = true, -- Only calls callback when you press enter
+    --     -- Callback = function(numberthreshold)
+    --     --     print("Input changed:", numberthreshold)
+    --     -- end
+    -- })
     
-    local player = game.Players.LocalPlayer
-    local AutofarmCoins = secauto:AddToggle("AutofarmCoins", {Title = "Autofarm heads", Default = false })
-    local eventsDeleted = false  -- Variable to track if the events were already deleted
+    -- local player = game.Players.LocalPlayer
+    -- local AutofarmCoins = secauto:AddToggle("AutofarmCoins", {Title = "Autofarm heads", Default = false })
+    -- local eventsDeleted = false  -- Variable to track if the events were already deleted
     
-    local notificationShown = false
+    -- local notificationShown = false
     
-    -- Function to disable autofarm and show notification
-    local function disableAutofarmWithNotification()
-        AutofarmCoins:SetValue(false)
-        Fluent:Notify({
-            Title = "Autofarm",
-            Content = "Disabled due to death.",
-            Duration = 5
-        })
-    end
+    -- -- Function to disable autofarm and show notification
+    -- local function disableAutofarmWithNotification()
+    --     AutofarmCoins:SetValue(false)
+    --     Fluent:Notify({
+    --         Title = "Autofarm",
+    --         Content = "Disabled due to death.",
+    --         Duration = 5
+    --     })
+    -- end
     
-    AutofarmCoins:OnChanged(function()
-        if not player or not player.Character then return end -- Ensure player exists
-        local characterEvents = player.Character:FindFirstChild("CharacterEvents")
-        if not characterEvents then return end -- Ensure CharacterEvents exists
+    -- AutofarmCoins:OnChanged(function()
+    --     if not player or not player.Character then return end -- Ensure player exists
+    --     local characterEvents = player.Character:FindFirstChild("CharacterEvents")
+    --     if not characterEvents then return end -- Ensure CharacterEvents exists
     
-        if AutofarmCoins.Value then
-            -- Check if player has a weapon
-            local weapon = player.Character:FindFirstChildOfClass("Tool")
-            if not weapon then
-                AutofarmCoins:SetValue(false)
-                Fluent:Notify({
-                    Title = "Autofarm",
-                    Content = "Weapon not found.",
-                    Duration = 5
-                })
-                return  -- Exit early if no weapon
-            end
+    --     if AutofarmCoins.Value then
+    --         -- Check if player has a weapon
+    --         local weapon = player.Character:FindFirstChildOfClass("Tool")
+    --         if not weapon then
+    --             AutofarmCoins:SetValue(false)
+    --             Fluent:Notify({
+    --                 Title = "Autofarm",
+    --                 Content = "Weapon not found.",
+    --                 Duration = 5
+    --             })
+    --             return  -- Exit early if no weapon
+    --         end
 
-            if humanoid.Health == 0 then
-                disableAutofarmWithNotification()  -- Disable autofarm and notify on death
-                return
-            end
+    --         if humanoid.Health == 0 then
+    --             disableAutofarmWithNotification()  -- Disable autofarm and notify on death
+    --             return
+    --         end
     
-            -- Delete events only once
-            if not eventsDeleted then
-                for _, event in ipairs(characterEvents:GetChildren()) do
-                    event:Destroy()  -- Destroy each child (event) in the CharacterEvents folder
-                end
-                eventsDeleted = true
-            end
+    --         -- Delete events only once
+    --         if not eventsDeleted then
+    --             for _, event in ipairs(characterEvents:GetChildren()) do
+    --                 event:Destroy()  -- Destroy each child (event) in the CharacterEvents folder
+    --             end
+    --             eventsDeleted = true
+    --         end
     
-            -- Ensure to disable autofarm on death
-            if player.Character:FindFirstChild("Humanoid") then
-                player.Character.Humanoid.Died:Connect(function()
-                    disableAutofarmWithNotification()  -- Disable autofarm and notify on death
-                end)
-            end
+    --         -- Ensure to disable autofarm on death
+    --         if player.Character:FindFirstChild("Humanoid") then
+    --             player.Character.Humanoid.Died:Connect(function()
+    --                 disableAutofarmWithNotification()  -- Disable autofarm and notify on death
+    --             end)
+    --         end
     
-            -- Start the hit loop
-            task.spawn(function()
-                while AutofarmCoins.Value do
-                    for _, tool in ipairs(player.Character:GetChildren()) do
-                        if tool:IsA("Tool") then
-                            local hitEvent = tool:FindFirstChild("Events") and tool.Events:FindFirstChild("Hit")
-                            if hitEvent then
-                                local humanoid = player.Character:FindFirstChild("Humanoid")
-                                if humanoid then
-                                    hitEvent:FireServer(humanoid)
-                                end
-                            end
-                        end
-                    end
+    --         -- Start the hit loop
+    --         task.spawn(function()
+    --             while AutofarmCoins.Value do
+    --                 for _, tool in ipairs(player.Character:GetChildren()) do
+    --                     if tool:IsA("Tool") then
+    --                         local hitEvent = tool:FindFirstChild("Events") and tool.Events:FindFirstChild("Hit")
+    --                         if hitEvent then
+    --                             local humanoid = player.Character:FindFirstChild("Humanoid")
+    --                             if humanoid then
+    --                                 hitEvent:FireServer(humanoid)
+    --                             end
+    --                         end
+    --                     end
+    --                 end
                     
-                    -- Convert input value to a number and check if it's >= 0.8           
-                    -- if Headsinput.Value > 0.8 then
-                        task.wait(Headsinput.Value)
-                    -- end
-                end
-            end)
+    --                 -- Convert input value to a number and check if it's >= 0.8           
+    --                 -- if Headsinput.Value > 0.8 then
+    --                     task.wait(Headsinput.Value)
+    --                 -- end
+    --             end
+    --         end)
             
     
-        else
-            -- Stop the hit loop
+    --     else
+    --         -- Stop the hit loop
             
-            -- Restore the deleted events
-            if eventsDeleted then
-                local function restoreEvent(name)
-                    local event = Instance.new("RemoteEvent")
-                    event.Name = name
-                    event.Parent = player.Character:FindFirstChild("CharacterEvents")
-                end
+    --         -- Restore the deleted events
+    --         if eventsDeleted then
+    --             local function restoreEvent(name)
+    --                 local event = Instance.new("RemoteEvent")
+    --                 event.Name = name
+    --                 event.Parent = player.Character:FindFirstChild("CharacterEvents")
+    --             end
     
-                restoreEvent("Ability")
-                restoreEvent("ClientRagdollEvent")
-                restoreEvent("Headbutt")
-                restoreEvent("Hit")
-                restoreEvent("Impulse")
-                restoreEvent("Launch")
-                restoreEvent("PhysicsEvent")
-                restoreEvent("RagdollEvent")
+    --             restoreEvent("Ability")
+    --             restoreEvent("ClientRagdollEvent")
+    --             restoreEvent("Headbutt")
+    --             restoreEvent("Hit")
+    --             restoreEvent("Impulse")
+    --             restoreEvent("Launch")
+    --             restoreEvent("PhysicsEvent")
+    --             restoreEvent("RagdollEvent")
     
-                eventsDeleted = false  -- Reset the deletion flag
-            end
-        end
-    end)
+    --             eventsDeleted = false  -- Reset the deletion flag
+    --         end
+    --     end
+    -- end)
     
-    -- Ensure Autofarm is off initially
-    AutofarmCoins:SetValue(false)
+    -- -- Ensure Autofarm is off initially
+    -- AutofarmCoins:SetValue(false)
     
 
 
@@ -429,12 +429,6 @@ Killaura:OnChanged(function()
             })
             return
         end
-        
-        Fluent:Notify({
-            Title = "Kill Aura",
-            Content = "If you die kill aura will be disabled.",
-            Duration = 5
-        })
         hitEventThread = task.spawn(fireHitEvent)
     else
         hitEventThread = nil  -- Stop the loop
@@ -662,7 +656,7 @@ brickk:OnChanged(function()
     if brickk.Value then
         -- Define position and size when toggle is enabled
         local position = Vector3.new(50, -47, 1000)
-        local size = Vector3.new(10000, 10, 10000) -- Massive brick
+        local size = Vector3.new(9999999, 10, 9999999) -- Massive brick
         
         -- Create the brick
         local brick = Instance.new("Part")
@@ -772,6 +766,191 @@ end)
 
 
 
+
+
+local secautoBoss = Tabs.Autofarm:AddSection("Boss")
+local AutofarmBoss = secautoBoss:AddToggle("AutofarmBoss", {Title = "Autofarm Boss", Default = false})
+local player = game:GetService("Players").LocalPlayer
+local hitEventThread = nil
+local teleportThread = nil
+local lerpSpeed = 0.1  -- Lerp alpha value (0-1, higher = faster)
+local teleportDelay = 0.01  -- Time between position updates
+local isRunning = false  -- Flag to prevent multiple instances
+local RunService = game:GetService("RunService")
+
+-- Function to check if the boss has spawned
+local function isBossSpawned()
+    local boss = workspace:FindFirstChild("Boss")
+    return boss and boss:FindFirstChild("KingBuffoon")
+end
+
+-- Function to safely get the boss and its humanoid
+local function getBoss()
+    if not isBossSpawned() then
+        return nil, nil
+    end
+    
+    local boss = workspace.Boss.KingBuffoon
+    local bossHumanoid = boss:FindFirstChild("Humanoid")
+    return boss, bossHumanoid
+end
+
+-- Function to lerp to the boss position
+local function lerpToBoss()
+    while AutofarmBoss.Value and isRunning do
+        -- Safety check to prevent crashing
+        if not isBossSpawned() then
+            AutofarmBoss:SetValue(false)
+            Fluent:Notify({
+                Title = "Autofarm Boss",
+                Content = "Boss disappeared, disabling autofarm.",
+                Duration = 5
+            })
+            break
+        end
+        
+        local boss, _ = getBoss()
+        if boss and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local myHRP = player.Character:FindFirstChild("HumanoidRootPart")
+            local bossHRP = boss:FindFirstChild("HumanoidRootPart")
+            
+            if myHRP and bossHRP then
+                -- Calculate lerp position (current position moving toward boss position)
+                local currentPos = myHRP.Position
+                local targetPos = bossHRP.Position
+                
+                -- Apply lerp - move from current position toward target based on lerpSpeed
+                local newPosition = currentPos:Lerp(targetPos, lerpSpeed)
+                
+                -- Set the new position
+                pcall(function()
+                    myHRP.CFrame = CFrame.new(newPosition)
+                end)
+            end
+        end
+        
+        task.wait(teleportDelay)  -- Short delay between position updates
+    end
+end
+
+-- Function to fire the hit event
+local function fireHitEvent()
+    while AutofarmBoss.Value and isRunning do
+        -- Safety check to prevent crashing
+        if not isBossSpawned() then
+            AutofarmBoss:SetValue(false)
+            Fluent:Notify({
+                Title = "Autofarm Boss",
+                Content = "Boss disappeared, disabling autofarm.",
+                Duration = 5
+            })
+            break
+        end
+        
+        -- Check if player has weapon
+        local weapon = player.Character and player.Character:FindFirstChildOfClass("Tool")
+        if not weapon then
+            AutofarmBoss:SetValue(false)
+            Fluent:Notify({
+                Title = "Autofarm Boss",
+                Content = "Weapon not found, disabling autofarm.",
+                Duration = 5
+            })
+            break
+        end
+        
+        -- Safely attempt to fire hit event
+        local _, bossHumanoid = getBoss()
+        if bossHumanoid and player.Character and player.Character:FindFirstChild("PoolNoodle") then
+            local hitEvent = player.Character.PoolNoodle:FindFirstChild("Events") and 
+                            player.Character.PoolNoodle.Events:FindFirstChild("Hit")
+                            
+            if hitEvent then
+                pcall(function()
+                    hitEvent:FireServer(bossHumanoid)
+                end)
+            end
+        end
+        
+        task.wait(0.1)  -- Small delay to prevent event spam
+    end
+end
+
+-- Function to handle player death
+local function handlePlayerDeath()
+    if AutofarmBoss.Value then
+        AutofarmBoss:SetValue(false)
+        Fluent:Notify({
+            Title = "Autofarm Boss",
+            Content = "Disabled due to death.",
+            Duration = 5
+        })
+    end
+end
+
+-- Connect to character respawn
+player.CharacterAdded:Connect(function(character)
+    local humanoid = character:WaitForChild("Humanoid")
+    humanoid.Died:Connect(handlePlayerDeath)
+end)
+
+-- Handle AutofarmBoss toggle
+AutofarmBoss:OnChanged(function()
+    if AutofarmBoss.Value then
+        -- Check if boss exists first
+        if not isBossSpawned() then
+            AutofarmBoss:SetValue(false)
+            Fluent:Notify({
+                Title = "Autofarm Boss",
+                Content = "Boss not spawned yet.",
+                Duration = 5
+            })
+            return
+        end
+        
+        -- Check if player has a weapon
+        local weapon = player.Character and player.Character:FindFirstChildOfClass("Tool")
+        if not weapon then
+            AutofarmBoss:SetValue(false)
+            Fluent:Notify({
+                Title = "Autofarm Boss",
+                Content = "Weapon not found.",
+                Duration = 5
+            })
+            return
+        end
+        
+        -- Start autofarm only if not already running
+        if not isRunning then
+            isRunning = true
+            
+            -- Start both threads safely
+            hitEventThread = task.spawn(fireHitEvent)
+            teleportThread = task.spawn(lerpToBoss)
+        end
+    else
+        -- Clean shutdown when toggled off
+        isRunning = false
+        
+        if hitEventThread then
+            task.cancel(hitEventThread)
+            hitEventThread = nil
+        end
+        
+        if teleportThread then
+            task.cancel(teleportThread)
+            teleportThread = nil
+        end
+    end
+end)
+
+-- Ensure the death event is connected if the character already exists
+if player.Character then
+    local humanoid = player.Character:FindFirstChild("Humanoid")
+    if humanoid then
+        humanoid.Died:Connect(handlePlayerDeath)
+    end
+end
 
     
 
@@ -1046,10 +1225,10 @@ end)
 TTPM:SetValue(false)
 
 
-Tabs.AutoCrates:AddParagraph({
-    Title = "Disabled autofarm heads before enabling this.",
-    Content = ""
-})
+-- Tabs.AutoCrates:AddParagraph({
+--     Title = "Disabled autofarm heads before enabling this.",
+--     Content = ""
+-- })
 
 local seccrate = Tabs.AutoCrates:AddSection("Crates")
 
@@ -1104,78 +1283,6 @@ Options.UItogglecrate:SetValue(false)
 
 
 
-
-
-
-local MapTeleport = Tabs.Teleport:AddSection("Map")
-
-local DropdownTP1 = MapTeleport:AddDropdown("Dropdown", {
-    Title = "Teleport Locations",
-    Description = "Select a location to teleport",
-    Values = {
-        "Spawn", "Middle", "Volcano", "House", "Orange area", "Green area", 
-        "House Island", "Volcano Island", "Green Island", "Orange Island", 
-        "Cursed Easter egg", "MrKrabs Easter egg", "Patrick Easter egg", 
-        "Squidward Easter egg", "Hidden Place"
-    },
-    Multi = false,
-    Default = nil, -- No default selection
-})
-
--- Table storing predefined teleport positions (Replace with actual coordinates)
-local TeleportPositions = {
-    Spawn = Vector3.new(-119.48295593261719, -82, -633.8499145507812),
-    Middle = Vector3.new(-121.56722259521484, 30, 627.26806640625),
-    Volcano = Vector3.new(-58.984901428222656, 55, 379.8953552246094),
-    House = Vector3.new(-313.7142028808594, 65, 799.8230590820312),
-    ["Orange area"] = Vector3.new(113.75994873046875, 40, 568.0531616210938),
-    ["Green area"] = Vector3.new(-297.9775695800781, 60, 351.818115234375),
-    ["House Island"] = Vector3.new(-269.5734558105469, 40, 929.2530517578125),
-    ["Volcano Island"] = Vector3.new(6.409029960632324, 25, 133.85360717773438),
-    ["Green Island"] = Vector3.new(-453.35491943359375, 40, 475.5623779296875),
-    ["Orange Island"] = Vector3.new(159.71475219726562, 40, 871.1873779296875),
-    ["Cursed Easter egg"] = Vector3.new(-30.23427391052246, -29, 752.7457885742188),
-    ["MrKrabs Easter egg"] = Vector3.new(-355.552001953125, -68, 599.7149047851562),
-    ["Patrick Easter egg"] = Vector3.new(-7.87994384765625, -55, 635.6487426757812),
-    ["Squidward Easter egg"] = Vector3.new(-152.22637939453125, -25, 424.02178955078125),
-    ["Hidden Place"] = Vector3.new(-40.115821838378906, -66, 293.3738098144531),
-}
-
--- Function to teleport using Lerp
-local function TeleportToSelectedLocation(locationName)
-    DropdownTP1:SetValue(nil)  -- Reset dropdown selection
-    if not locationName or not TeleportPositions[locationName] then return end -- Ensure a valid selection
-
-    local player = game.Players.LocalPlayer
-    if not player or not player.Character then return end
-
-    local character = player.Character
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return end
-
-    local targetPosition = TeleportPositions[locationName]
-
-    local speed = 225 -- Fixed speed (adjustable for balance)
-    local stepInterval, stepSize = 0.005, speed * 0.005
-    local startPos, endPos = rootPart.Position, targetPosition + Vector3.new(0, 2, 0)
-    local totalSteps = math.ceil((startPos - endPos).Magnitude / stepSize)
-
-    for i = 1, totalSteps do
-        -- Slightly modify the path for unpredictability
-        local adjustedEndPos = endPos + Vector3.new(math.random() * 0.1 - 0.05, 0, math.random() * 0.1 - 0.05)
-
-        -- Lerp movement
-        rootPart.CFrame = CFrame.new(startPos:Lerp(adjustedEndPos, i / totalSteps))
-        task.wait(stepInterval)
-    end
-end
-
--- Connect dropdown selection to teleport function
-DropdownTP1:OnChanged(function(selectedLocation)
-    if selectedLocation then
-        TeleportToSelectedLocation(selectedLocation)
-    end
-end)
 
 
 local PlayerTeleport = Tabs.Teleport:AddSection("Players")

@@ -861,19 +861,18 @@ local function fireHitEvent()
         end
         
         -- Safely attempt to fire hit event
-        -- Safely attempt to fire hit event
         local _, bossHumanoid = getBoss()
         local weapon = player.Character and player.Character:FindFirstChildOfClass("Tool")
-            if bossHumanoid and player.Character and weapon then
-                    local hitEvent = weapon:FindFirstChild("Events") and 
-                    weapon.Events:FindFirstChild("Hit")
+        if bossHumanoid and player.Character and weapon then
+            local hitEvent = weapon:FindFirstChild("Events") and 
+                           weapon.Events:FindFirstChild("Hit")
                     
-    if hitEvent then
-        pcall(function()
-            hitEvent:FireServer(bossHumanoid)
-        end)
-    end
-end
+            if hitEvent then
+                pcall(function()
+                    hitEvent:FireServer(bossHumanoid)
+                end)
+            end
+        end
         
         task.wait(0.1)  -- Small delay to prevent event spam
     end
@@ -897,10 +896,51 @@ player.CharacterAdded:Connect(function(character)
     humanoid.Died:Connect(handlePlayerDeath)
 end)
 
+-- Listen for workspace changes to detect boss spawn/despawn
+workspace.ChildAdded:Connect(function(child)
+    if child.Name == "Boss" then
+        -- Wait for KingBuffoon to load
+        child.ChildAdded:Connect(function(bossChild)
+            if bossChild.Name == "KingBuffoon" then
+                Fluent:Notify({
+                    Title = "Boss Notification",
+                    Content = "Boss has spawned!",
+                    Duration = 5
+                })
+            end
+        end)
+    end
+end)
+
+workspace.ChildRemoved:Connect(function(child)
+    if child.Name == "Boss" and AutofarmBoss.Value then
+        AutofarmBoss:SetValue(false)
+        Fluent:Notify({
+            Title = "Autofarm Boss",
+            Content = "Boss despawned, disabling autofarm.",
+            Duration = 5
+        })
+    end
+end)
+
+-- Constantly check if boss exists and toggle off if not
+task.spawn(function()
+    while wait(1) do  -- Check every second
+        if AutofarmBoss.Value and not isBossSpawned() then
+            AutofarmBoss:SetValue(false)
+            Fluent:Notify({
+                Title = "Autofarm Boss",
+                Content = "Boss not found, disabling autofarm.",
+                Duration = 5
+            })
+        end
+    end
+end)
+
 -- Handle AutofarmBoss toggle
 AutofarmBoss:OnChanged(function()
     if AutofarmBoss.Value then
-        -- Check if boss exists first
+        -- Check if boss exists first - immediately toggle off if not
         if not isBossSpawned() then
             AutofarmBoss:SetValue(false)
             Fluent:Notify({

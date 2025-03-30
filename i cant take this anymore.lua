@@ -54,7 +54,7 @@ local Tabs = {
     Misc = Window:AddTab({ Title = "Misc", Icon = "hammer" }),
     Autofarm = Window:AddTab({ Title = "Autofarm", Icon = "repeat" }),
     AutoCrates = Window:AddTab({ Title = "Crates", Icon = "box" }),
-    Teleport = Window:AddTab({ Title = "Teleport", Icon = "compass" }),
+    -- Teleport = Window:AddTab({ Title = "Teleport", Icon = "compass" }),
     ESP = Window:AddTab({ Title = "ESP", Icon = "eye" }),
     Feedback = Window:AddTab({ Title = "Feedback", Icon = "star" }),
     Credits = Window:AddTab({ Title = "Credits", Icon = "book" }),
@@ -1351,80 +1351,80 @@ Options.UItogglecrate:SetValue(false)
 
 
 
-local PlayerTeleport = Tabs.Teleport:AddSection("Players")
+-- local PlayerTeleport = Tabs.Teleport:AddSection("Players")
 
--- Function to get all player names (excluding LocalPlayer)
-local function GetPlayerNames()
-    local playerNames = {}
-    local localPlayer = game.Players.LocalPlayer
-    for _, player in ipairs(game.Players:GetPlayers()) do
-        if player ~= localPlayer then -- Exclude local player
-            table.insert(playerNames, player.Name)
-        end
-    end
-    return playerNames
-end
+-- -- Function to get all player names (excluding LocalPlayer)
+-- local function GetPlayerNames()
+--     local playerNames = {}
+--     local localPlayer = game.Players.LocalPlayer
+--     for _, player in ipairs(game.Players:GetPlayers()) do
+--         if player ~= localPlayer then -- Exclude local player
+--             table.insert(playerNames, player.Name)
+--         end
+--     end
+--     return playerNames
+-- end
 
--- Create the dropdown with dynamic player names
-local DropdownTP1 = PlayerTeleport:AddDropdown("Dropdown", {
-    Title = "Players",
-    Description = "Select a player to teleport to",
-    Values = GetPlayerNames(),
-    Multi = false,
-    Default = nil, -- No default selection
-})
+-- -- Create the dropdown with dynamic player names
+-- local DropdownTP1 = PlayerTeleport:AddDropdown("Dropdown", {
+--     Title = "Players",
+--     Description = "Select a player to teleport to",
+--     Values = GetPlayerNames(),
+--     Multi = false,
+--     Default = nil, -- No default selection
+-- })
 
--- Function to update the dropdown when players join/leave
-local function UpdateDropdown()
-    DropdownTP1:SetOptions(GetPlayerNames()) -- Update dropdown with new player list
-end
+-- -- Function to update the dropdown when players join/leave
+-- local function UpdateDropdown()
+--     DropdownTP1:SetOptions(GetPlayerNames()) -- Update dropdown with new player list
+-- end
 
-game.Players.PlayerAdded:Connect(UpdateDropdown)
-game.Players.PlayerRemoving:Connect(UpdateDropdown)
+-- game.Players.PlayerAdded:Connect(UpdateDropdown)
+-- game.Players.PlayerRemoving:Connect(UpdateDropdown)
 
--- Function to smoothly teleport to the selected player with dynamic speed
-local function TeleportToPlayer(playerName)
-    DropdownTP1:SetValue(nil) -- Reset dropdown selection after teleportation
-    local localPlayer = game.Players.LocalPlayer
-    if not localPlayer or not localPlayer.Character then return end
+-- -- Function to smoothly teleport to the selected player with dynamic speed
+-- local function TeleportToPlayer(playerName)
+--     DropdownTP1:SetValue(nil) -- Reset dropdown selection after teleportation
+--     local localPlayer = game.Players.LocalPlayer
+--     if not localPlayer or not localPlayer.Character then return end
 
-    local character = localPlayer.Character
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return end
+--     local character = localPlayer.Character
+--     local rootPart = character:FindFirstChild("HumanoidRootPart")
+--     if not rootPart then return end
 
-    local targetPlayer = game.Players:FindFirstChild(playerName)
-    if not targetPlayer or not targetPlayer.Character then return end
+--     local targetPlayer = game.Players:FindFirstChild(playerName)
+--     if not targetPlayer or not targetPlayer.Character then return end
 
-    local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not targetRoot then return end
+--     local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+--     if not targetRoot then return end
 
-    local startPos, endPos = rootPart.Position, targetRoot.Position + Vector3.new(0, 2, 0)
-    local distance = (startPos - endPos).Magnitude
+--     local startPos, endPos = rootPart.Position, targetRoot.Position + Vector3.new(0, 2, 0)
+--     local distance = (startPos - endPos).Magnitude
 
-    -- Adjust speed based on distance (closer = faster, farther = slower)
-    local minSpeed, maxSpeed = 500, 200 -- Min and max movement speed
-    local speed = math.clamp((1 / distance) * 500, maxSpeed, minSpeed) -- Inverse relationship: further = slower
+--     -- Adjust speed based on distance (closer = faster, farther = slower)
+--     local minSpeed, maxSpeed = 500, 200 -- Min and max movement speed
+--     local speed = math.clamp((1 / distance) * 500, maxSpeed, minSpeed) -- Inverse relationship: further = slower
 
-    local stepInterval, stepSize = 0.005, speed * 0.005
-    local totalSteps = math.ceil(distance / stepSize)
+--     local stepInterval, stepSize = 0.005, speed * 0.005
+--     local totalSteps = math.ceil(distance / stepSize)
 
-    for i = 1, totalSteps do
-        -- Slightly modify the path for unpredictability
-        local adjustedEndPos = endPos + Vector3.new(math.random() * 0.1 - 0.05, 0, math.random() * 0.1 - 0.05)
+--     for i = 1, totalSteps do
+--         -- Slightly modify the path for unpredictability
+--         local adjustedEndPos = endPos + Vector3.new(math.random() * 0.1 - 0.05, 0, math.random() * 0.1 - 0.05)
 
-        -- Lerp movement
-        local lerpedPos = startPos:Lerp(adjustedEndPos, i / totalSteps)
-        rootPart.CFrame = CFrame.new(lerpedPos)
-        task.wait(stepInterval)
-    end
-end
+--         -- Lerp movement
+--         local lerpedPos = startPos:Lerp(adjustedEndPos, i / totalSteps)
+--         rootPart.CFrame = CFrame.new(lerpedPos)
+--         task.wait(stepInterval)
+--     end
+-- end
 
--- Connect dropdown selection to teleport function
-DropdownTP1:OnChanged(function(selectedPlayer)
-    if selectedPlayer then
-        TeleportToPlayer(selectedPlayer)
-    end
-end)
+-- -- Connect dropdown selection to teleport function
+-- DropdownTP1:OnChanged(function(selectedPlayer)
+--     if selectedPlayer then
+--         TeleportToPlayer(selectedPlayer)
+--     end
+-- end)
 
 
 Tabs.ESP:AddParagraph({

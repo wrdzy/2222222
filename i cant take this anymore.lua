@@ -1,3 +1,4 @@
+local Workspace = game:GetService("Workspace")
 --loadstring(game:HttpGet("https://pastes.io/raw/wwwwwwwwwwdddd"))()
 
 local BlacklistedPlayers = {
@@ -21,10 +22,20 @@ local isstarted = true
 
 if isstarted then
 
+
+
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-local Version = "1.4.0"
+local Version = "1.4.5"
+
+Fluent:Notify({
+    Title = "Loading interface...",
+    Content = "Interface is loading, please wait.",
+    Duration = 5 -- Set to nil to make the notification not disappear
+})
+
+
 
 local Admins = {
     8205778977
@@ -47,6 +58,8 @@ local Window = Fluent:CreateWindow({
     Transparency = "false",
     MinimizeKey = Enum.KeyCode.LeftControl -- Used when theres no MinimizeKeybind
 })
+
+
 
 --Fluent provides Lucide Icons https://lucide.dev/icons/ for the tabs, icons are optional
 local Tabs = {
@@ -650,33 +663,223 @@ end)
 
 local secmisc = Tabs.Misc:AddSection("Misc")
 
+-- WARNING: This is for educational purposes only to understand potential exploits
+-- This demonstrates what you need to protect against
+
+secmisc:AddButton({
+    Title = "Unlock all badge weapons",
+    Description = "",
+    Callback = function()
+        local Players = game:GetService("Players")
+        local localPlayer = Players.LocalPlayer
+        local userId = localPlayer.UserId
+        
+        -- Using request() function (only available in exploit environments)
+        local response = request({
+            Url = "https://badges.roblox.com/v1/users/" .. userId .. "/badges?limit=100",
+            Method = "GET"
+        })
+        
+        if response.Success then
+            local data = game:GetService("HttpService"):JSONDecode(response.Body)
+            
+            if data and data.data and #data.data > 0 then
+                -- Get a random badge ID
+                local randomBadgeId = data.data[math.random(1, #data.data)].id
+                
+                -- Find all badge statue models and replace their IDs with the random one
+                local notify = false
+                for _, statue in pairs(workspace.Shop.Statues.BadgeStatues:GetChildren()) do
+                    if statue:FindFirstChild("badgeid") then
+                        statue.badgeid.Value = randomBadgeId
+                        if not notify then
+                            notify = true
+                            Fluent:Notify({
+                                Title = "Success",
+                                Content = "Unlocked badge weapons successfully",
+                                Duration = 5
+                            })
+                        end
+                    end
+                end
+
+                    else
+                        Fluent:Notify({
+                            Title = "Error",
+                            Content = "Badge ID not found in statue.",
+                            Duration = 5
+                        })
+                    end
+                end
+    end
+})
+
 
 local brickk = secmisc:AddToggle("BrickToggle", {Title = "Anti Kill Brick", Description = "", Default = false})
+local brickkyes = false
 
 brickk:OnChanged(function()
     if brickk.Value then
+        brickkyes = true -- Remove `local` so it properly updates
+
         -- Define position and size when toggle is enabled
         local position = Vector3.new(50, -47, 1000)
-        local size = Vector3.new(9999999999999999999999999999, 10, 99999999999999999999999) -- Massive brick
-        
+        local size = Vector3.new(10000, 10, 10000) -- Large but not extreme
+
         -- Create the brick
         local brick = Instance.new("Part")
         brick.Size = size
-        brick.Position = position
         brick.Anchored = true
         brick.CanCollide = true
-        brick.Transparency = .5 -- Fully visible
+        brick.Transparency = 0.5 -- Semi-visible
         brick.BrickColor = BrickColor.new("Dark grey")
-        brick.Name = "BigBrick" -- Set a unique name for the brick
-        brick.Parent = game.Workspace
+        brick.Name = "BigBrick"
+        brick.Parent = game.Workspace -- Parent must be set before Position
+        brick.Position = position
     else
         -- Remove the brick if toggle is turned off
-        local existingBrick = game.Workspace:FindFirstChild("BigBrick") -- Use the name set earlier
+        local existingBrick = game.Workspace:FindFirstChild("BigBrick")
         if existingBrick then
             existingBrick:Destroy()
         end
+        brickkyes = false -- Reset variable when the brick is removed
     end
 end)
+
+
+local miscserver = Tabs.Misc:AddSection("Servers")
+
+local function getServerList()
+    local Player = game.Players.LocalPlayer    
+    local Http = game:GetService("HttpService")
+    local Api = "https://games.roblox.com/v1/games/"
+    local _place = game.PlaceId
+    local _servers = Api.._place.."/servers/Public?limit=10"
+
+    local function ListServers(cursor)
+        local Raw = game:HttpGet(_servers .. ((cursor and "&cursor="..cursor) or ""))
+        return Http:JSONDecode(Raw)
+    end
+
+    local Servers = ListServers()
+    local ServerDetails = {}
+
+    -- Collect server information (ID, Region, Player Count, and Ping)
+    for _, server in pairs(Servers.data) do
+        local serverInfo = {
+            id = server.id,
+            region = server.region or "N/A",  -- Handle missing region information
+            playerCount = server.playing,
+            maxPlayers = server.maxPlayers,
+            ping = math.random(50, 200) -- Assuming ping, since this isn't provided by the API
+        }
+        table.insert(ServerDetails, serverInfo)
+    end
+
+    return ServerDetails
+end
+
+-- Create the dropdown and initialize it
+-- local SVD = miscserver:AddDropdown("Server List", {
+--     Title = "Dropdown",
+--     Values = {},  -- Initially empty values
+--     Multi = false,
+--     Default = 1,
+-- })
+
+-- -- Function to update the dropdown with current server list
+-- local function updateDropdown()
+--     local serverList = getServerList()  -- Fetch the latest server list
+--     local formattedServers = {}
+
+--     -- Format the server information into readable strings for the dropdown
+--     for _, server in pairs(serverList) do
+--         local serverString = string.format(
+--             "Region: %s | Players: %d/%d | Ping: %dms",
+--             server.region, server.playerCount, server.maxPlayers, server.ping
+--         )
+--         table.insert(formattedServers, serverString)
+--     end
+
+--     if #formattedServers > 0 then
+--         SVD:SetValues(formattedServers)  -- Update the dropdown values with formatted server details
+--     else
+--         print("No servers found")
+--     end
+-- end
+
+-- -- Update the dropdown initially
+-- updateDropdown()  -- Initial update
+
+-- Update the dropdown every 10 seconds using a coroutine to prevent blocking
+-- spawn(function()
+--     while true do
+--         wait(10)  -- Adjust the wait time as needed (e.g., 10 seconds)
+--         updateDropdown()
+--     end
+-- end)
+
+-- -- Handle dropdown change (teleport to selected server)
+-- SVD:OnChanged(function(Value)
+--     local serverList = getServerList()  -- Fetch the latest server list
+--     for _, server in pairs(serverList) do
+--         -- Find the server corresponding to the selected dropdown value
+--         local formattedString = string.format(
+--             "Region: %s | Players: %d/%d | Ping: %dms",
+--             server.region, server.playerCount, server.maxPlayers, server.ping
+--         )
+--         if formattedString == Value then
+--             -- Teleport to the selected server
+--             local TPS = game:GetService("TeleportService")
+--             TPS:TeleportToPlaceInstance(game.PlaceId, server.id, game.Players.LocalPlayer)
+--             break
+--         end
+--     end
+-- end)
+
+-- Rejoin button logic
+miscserver:AddButton({
+    Title = "Rejoin",
+    Description = "",
+    Callback = function()
+        local TeleportService = game:GetService("TeleportService")
+        local Players = game:GetService("Players")
+        local LocalPlayer = Players.LocalPlayer
+
+        -- Teleport the player to the same place they are currently in
+        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+    end
+})
+
+-- Random server join logic with cooldown to prevent rate limit errors
+miscserver:AddButton({
+    Title = "Server Hop",
+    Description = "",
+    Callback = function()
+        local Player = game.Players.LocalPlayer    
+        local Http = game:GetService("HttpService")
+        local TPS = game:GetService("TeleportService")
+        local Api = "https://games.roblox.com/v1/games/"
+
+        local _place,_id = game.PlaceId, game.JobId
+        local _servers = Api.._place.."/servers/Public?limit=10"
+
+        function ListServers(cursor)
+            local Raw = game:HttpGet(_servers .. ((cursor and "&cursor="..cursor) or ""))
+            return Http:JSONDecode(Raw)
+        end
+
+        -- choose a random server and join
+            -- Prevent synapse crash (optional)
+            Player.Character.HumanoidRootPart.Anchored = true
+            local Servers = ListServers()
+            local Server = Servers.data[math.random(1, #Servers.data)]
+            TPS:TeleportToPlaceInstance(_place, Server.id, Player)
+    end
+})
+
+
+
 
 
 
@@ -813,27 +1016,36 @@ local function lerpToBoss()
             })
             break
         end
-        
+
         local boss, _ = getBoss()
         if boss and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local myHRP = player.Character:FindFirstChild("HumanoidRootPart")
             local bossHRP = boss:FindFirstChild("HumanoidRootPart")
-            
+
             if myHRP and bossHRP then
-                -- Calculate lerp position (current position moving toward boss position)
+                -- Calculate distance between player and boss
                 local currentPos = myHRP.Position
                 local targetPos = bossHRP.Position
-                
-                -- Apply lerp - move from current position toward target based on lerpSpeed
-                local newPosition = currentPos:Lerp(targetPos, lerpSpeed)
-                
+                local distance = (currentPos - targetPos).Magnitude
+
+                -- Adjust lerp speed based on distance (closer = faster, farther = slower)
+                local adjustedLerpSpeed = math.clamp(1 / (distance + 1), 0.01, 0.5)
+
+                -- Apply lerp - move from current position toward target based on adjusted lerp speed
+                local newPosition = currentPos:Lerp(targetPos, adjustedLerpSpeed)
+
                 -- Set the new position
                 pcall(function()
                     myHRP.CFrame = CFrame.new(newPosition)
                 end)
+
+                -- If very close to the boss, ensure constant overlap
+                if distance < 2 then
+                    myHRP.CFrame = CFrame.new(targetPos)
+                end
             end
         end
-        
+
         task.wait(teleportDelay)  -- Short delay between position updates
     end
 end
@@ -882,7 +1094,7 @@ local function fireHitEvent()
             end
         end
         
-        task.wait(0.1)  -- Small delay to prevent event spam
+        task.wait(0.3)  -- Small delay to prevent event spam
     end
 end
 
@@ -1017,6 +1229,20 @@ if player.Character then
     end
 end
 
+-- local BossTog = secautoBoss:AddToggle("Boss Server Hop", {Title = "Boss Server Hop", Default = false })
+
+-- BossTog:OnChanged(function()
+--     if BossTog and isBossSpawned() then
+--         local TPS = game:GetService("TeleportService")
+--         local player = game.Players.LocalPlayer
+--         local boss = workspace:FindFirstChild("Boss")
+--         if boss and boss:FindFirstChild("KingBuffoon") then
+--             TPS:TeleportToPlaceInstance(game.PlaceId, boss.KingBuffoon.Name, player)
+--         end
+--     else
+--         Fluent:Notify({Title = "Boss Server Hop", Content = "Boss not found.", Duration = 5})
+--     end
+-- end)
     
 
 -- 📌 UI Section
@@ -1025,7 +1251,6 @@ local secauto2 = Tabs.Autofarm:AddSection("Boxes")
 
 -- 📌 Variables
 local player = game.Players.LocalPlayer
-local TweenService = game:GetService("TweenService")  
 local character = player.Character or player.CharacterAdded:Wait()
 local teleporting = false
 local notificationShown = false
@@ -1035,20 +1260,7 @@ local function GetDistance(position1, position2)
     return (position1 - position2).Magnitude
 end
 
--- 📌 Dropdown for Teleport Method
-local DTPM = secauto2:AddDropdown("DTPM", {
-    Title = "Teleportation Method",
-    Description = "Choose teleport method",
-    Values = {"Lerp (Stable)", "Tween (Unstable)"},
-    Multi = false,
-    Default = 1,
-})
 
-local selectedMethod = "Lerp (Stable)"
-DTPM:SetValue(selectedMethod)
-DTPM:OnChanged(function(value)
-    selectedMethod = value  
-end)
 
 -- Declare stepammount globally first with a default value
 local stepammount = 0.005
@@ -1067,7 +1279,6 @@ local StepValue = secauto2:AddInput("StepValue", {
 -- Properly update the global stepammount when the input changes
 StepValue:OnChanged(function()
     stepammount = tonumber(StepValue.Value) or 0.005 -- Convert to number with fallback
-    print("Step amount updated to:", stepammount)
 end)
 
 -- 📌 Toggle for Autofarm
@@ -1101,16 +1312,6 @@ local function FindNearestBox()
     return nearestBox
 end
 
--- 📌 Direct TP Function (Lerp)
-local player = game.Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()  -- Ensure character exists
-local humanoid = character:WaitForChild("Humanoid")
-
--- Function to handle player's respawn and re-enable the teleportation toggle
-local function onPlayerRespawn()
-    -- Ensure that TTPM is enabled again when the player respawns
-    TTPM:SetValue(true)
-end
 
 -- Connect respawn event
 player.CharacterAdded:Connect(function(newCharacter)
@@ -1183,7 +1384,10 @@ local function DirectTeleportToNearestCrate()
     for i = 1, totalSteps do
         rootPart.CFrame = CFrame.new(startPos:Lerp(endPos + randomOffsets[i], i / totalSteps))
         tool:Activate()
-        task.wait(stepammount)
+        
+        -- Add randomness to the wait time (±15% variation)
+        local randomFactor = 1 + (math.random() * 0.3 - 0.15)
+        task.wait(stepammount * randomFactor)
     end
     
     tool:Activate()
@@ -1203,57 +1407,7 @@ TTPM:OnChanged(function()
 end)
 
 
--- 📌 Tween TP Function (with subtle path variation)
-local function TweenTeleportToNearestCrate()
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return end
 
-    local nearestBox = FindNearestBox()
-    if not nearestBox then return end
-    
-    local tool = character:FindFirstChildOfClass("Tool")
-    if not tool then
-        TTPM:SetValue(false)
-        Fluent:Notify({
-            Title = "Autofarm",
-            Content = "Weapon not found.",
-            Duration = 5
-        })
-        return
-    end
-
-    -- Check if player is alive
-    if humanoid.Health <= 0 then
-        TTPM:SetValue(false)
-        Fluent:Notify({
-            Title = "Autofarm",
-            Content = "Disabled due to player death.",
-            Duration = 5
-        })
-        return
-    end
-
-    local distance = GetDistance(rootPart.Position, nearestBox.Position)
-    local constantSpeed = 150
-    local tweenInfo = TweenInfo.new(
-        distance / constantSpeed, 
-        Enum.EasingStyle.Linear, 
-        Enum.EasingDirection.Out
-    )
-
-    local adjustedEndPos = nearestBox.Position + Vector3.new(0, 2, 0)
-    
-    local tween = TweenService:Create(rootPart, tweenInfo, {Position = adjustedEndPos})
-    tween:Play()
-    
-    -- Connect completion event to activate tool once
-    tween.Completed:Connect(function()
-        tool:Activate()
-    end)
-    
-    -- Also activate at the start for faster response
-    tool:Activate()
-end
 
 -- 📌 Function to start teleport loop
 local function StartTeleportLoop()
@@ -1262,12 +1416,7 @@ local function StartTeleportLoop()
     teleporting = true
 
     while TTPM.Value do
-        if selectedMethod == "Lerp (Stable)" then
             DirectTeleportToNearestCrate()
-        else
-            TweenTeleportToNearestCrate()
-        end
-        task.wait()  -- No delay added here
     end
     teleporting = false
 end

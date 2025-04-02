@@ -1115,10 +1115,16 @@ local AutofarmBoss = secautoBoss:AddToggle("AutofarmBoss", {Title = "Autofarm Bo
 local player = game:GetService("Players").LocalPlayer
 local hitEventThread = nil
 local teleportThread = nil
-local lerpSpeed = 0.1  -- Lerp alpha value (0-1, higher = faster)
-local teleportDelay = 0.01  -- Time between position updates
 local isRunning = false  -- Flag to prevent multiple instances
 local RunService = game:GetService("RunService")
+
+-- Improved teleport settings
+local baseLerpSpeed = 0.05      -- Base lerp speed for smooth movement
+local maxLerpSpeed = 0.3        -- Maximum lerp speed for close distances
+local minLerpSpeed = 0.01       -- Minimum lerp speed for far distances
+local distanceThreshold = 50    -- Distance threshold for lerp adjustment
+local closeRange = 5            -- Distance considered "close" to boss
+local positionOffset = Vector3.new(0, 2, 2)  -- Offset from boss position
 
 -- Function to check if the boss has spawned
 local function isBossSpawned()
@@ -1137,8 +1143,14 @@ local function getBoss()
     return boss, bossHumanoid
 end
 
--- Function to lerp to the boss position
-local function lerpToBoss()
+-- Enhanced function to lerp to the boss position with better dynamics
+local function enhancedLerpToBoss()
+    local lastPosition = nil
+    local arrivalTime = 0
+    local randomOffset = Vector3.new(0, 0, 0)
+    local stuckCounter = 0
+    local positionUpdateTime = 0
+    
     while AutofarmBoss.Value and isRunning do
         -- Safety check to prevent crashing
         if not isBossSpawned() then
@@ -1159,30 +1171,87 @@ local function lerpToBoss()
             local bossHRP = boss:FindFirstChild("HumanoidRootPart")
 
             if myHRP and bossHRP then
-                -- Calculate distance between player and boss
                 local currentPos = myHRP.Position
-                local targetPos = bossHRP.Position
+                local targetPos = bossHRP.Position + positionOffset
                 local distance = (currentPos - targetPos).Magnitude
-
-                -- Adjust lerp speed based on distance (closer = faster, farther = slower)
-                local adjustedLerpSpeed = math.clamp(1 / (distance + 1), 0.01, 0.5)
-
-                -- Apply lerp - move from current position toward target based on adjusted lerp speed
-                local newPosition = currentPos:Lerp(targetPos, adjustedLerpSpeed)
-
-                -- Set the new position
-                pcall(function()
-                    myHRP.CFrame = CFrame.new(newPosition)
-                end)
-
-                -- If very close to the boss, ensure constant overlap
-                if distance < 2 then
-                    myHRP.CFrame = CFrame.new(targetPos)
+                
+                -- Check if we're stuck in the same position
+                if lastPosition then
+                    local movementDelta = (currentPos - lastPosition).Magnitude
+                    if movementDelta < 0.1 and distance > closeRange then
+                        stuckCounter = stuckCounter + 1
+                    else
+                        stuckCounter = 0
+                    end
                 end
+                
+                -- If we seem stuck, apply a random offset to break out
+                if stuckCounter > 10 then
+                    randomOffset = Vector3.new(
+                        math.random(-3, 3),
+                        math.random(0, 5),
+                        math.random(-3, 3)
+                    )
+                    stuckCounter = 0
+                    positionUpdateTime = tick() + 0.5
+                end
+                
+                -- Apply random offset if needed
+                local actualTargetPos = targetPos
+                if tick() < positionUpdateTime then
+                    actualTargetPos = targetPos + randomOffset
+                else
+                    randomOffset = Vector3.new(0, 0, 0)
+                end
+                
+                -- Dynamic lerp speed calculation
+                local dynamicLerpSpeed = baseLerpSpeed
+                
+                if distance > distanceThreshold then
+                    -- Far away - fast initial approach
+                    dynamicLerpSpeed = maxLerpSpeed
+                elseif distance < closeRange then
+                    -- Very close - precision movement
+                    dynamicLerpSpeed = minLerpSpeed * 3
+                    
+                    -- If we've been close for a while, occasionally circle the boss
+                    if arrivalTime == 0 then
+                        arrivalTime = tick()
+                    elseif tick() - arrivalTime > 2 then
+                        local angle = (tick() % 6.28) -- Full circle over time
+                        local circleRadius = 3
+                        local circleOffset = Vector3.new(
+                            math.cos(angle) * circleRadius,
+                            1,
+                            math.sin(angle) * circleRadius
+                        )
+                        actualTargetPos = bossHRP.Position + circleOffset
+                    end
+                else
+                    -- Medium distance - dynamic scaling based on distance
+                    local scaleFactor = 1 - (distance / distanceThreshold)
+                    dynamicLerpSpeed = minLerpSpeed + scaleFactor * (maxLerpSpeed - minLerpSpeed)
+                    arrivalTime = 0
+                end
+                
+                -- Apply lerp with dynamic speed
+                local newPosition = currentPos:Lerp(actualTargetPos, dynamicLerpSpeed)
+                
+                -- Set the new position with orientation facing the boss
+                pcall(function()
+                    local lookVector = (bossHRP.Position - newPosition).Unit
+                    local rightVector = Vector3.new(0, 1, 0):Cross(lookVector).Unit
+                    local upVector = lookVector:Cross(rightVector)
+                    
+                    myHRP.CFrame = CFrame.new(newPosition) * CFrame.fromMatrix(newPosition, rightVector, upVector, -lookVector)
+                end)
+                
+                -- Save position for stuck detection
+                lastPosition = currentPos
             end
         end
 
-        task.wait(teleportDelay)  -- Short delay between position updates
+        task.wait(0.01)  -- Shorter delay for smoother movement
     end
 end
 
@@ -1218,7 +1287,6 @@ local function fireHitEvent()
         
         -- Safely attempt to fire hit event
         local _, bossHumanoid = getBoss()
-        local weapon = player.Character and player.Character:FindFirstChildOfClass("Tool")
         if bossHumanoid and player.Character and weapon then
             local hitEvent = weapon:FindFirstChild("Events") and 
                            weapon.Events:FindFirstChild("Hit")
@@ -1227,10 +1295,16 @@ local function fireHitEvent()
                 pcall(function()
                     hitEvent:FireServer(bossHumanoid)
                 end)
+            else
+                -- Try to use the weapon's Activate function as backup
+                pcall(function()
+                    weapon:Activate()
+                end)
             end
         end
         
-        task.wait(0.3)  -- Small delay to prevent event spam
+        -- Vary attack interval slightly to appear more natural
+        task.wait(0.3 + math.random() * 0.1)
     end
 end
 
@@ -1252,6 +1326,24 @@ end
 player.CharacterAdded:Connect(function(character)
     local humanoid = character:WaitForChild("Humanoid")
     humanoid.Died:Connect(handlePlayerDeath)
+    
+    -- Additionally, check if autofarm is running after respawn
+    if AutofarmBoss.Value then
+        -- Delay check to allow character to fully load
+        task.delay(1, function()
+            local weapon = character:FindFirstChildOfClass("Tool")
+            if not weapon then
+                task.defer(function()
+                    AutofarmBoss:SetValue(false)
+                end)
+                Fluent:Notify({
+                    Title = "Autofarm Boss",
+                    Content = "Disabled after respawn - no weapon found.",
+                    Duration = 5
+                })
+            end
+        end)
+    end
 end)
 
 -- Listen for workspace changes to detect boss spawn/despawn
@@ -1339,7 +1431,7 @@ AutofarmBoss:OnChanged(function()
             
             -- Start both threads safely
             hitEventThread = task.spawn(fireHitEvent)
-            teleportThread = task.spawn(lerpToBoss)
+            teleportThread = task.spawn(enhancedLerpToBoss)
         end
     else
         -- Clean shutdown when toggled off
@@ -1430,6 +1522,10 @@ end
 
 -- 📌 Function to find nearest box
 local function FindNearestBox()
+    -- Get current character's root part
+    local character = player.Character
+    if not character then return nil end
+    
     local rootPart = character:FindFirstChild("HumanoidRootPart")
     if not rootPart then return nil end
 
@@ -1448,43 +1544,48 @@ local function FindNearestBox()
     return nearestBox
 end
 
+-- Function to check if player has a weapon equipped
+local function HasWeaponEquipped()
+    local character = player.Character
+    if not character then return false end
+    
+    local tool = character:FindFirstChildOfClass("Tool")
+    return tool ~= nil
+end
 
--- Connect respawn event
-player.CharacterAdded:Connect(function(newCharacter)
-    character = newCharacter  -- Update character reference
-    humanoid = character:WaitForChild("Humanoid")
-
-    -- Connect to the new humanoid's Died event to disable autofarm on death
-    humanoid.Died:Connect(function()
+-- Function to handle player death
+local function handlePlayerDeath()
+    if TTPM.Value then
         TTPM:SetValue(false)
         Fluent:Notify({
-            Title = "Autofarm",
-            Content = "Disabled due to player death.",
-            SubContent = "", -- Optional
-            Duration = 5 -- Set to nil to make the notification not disappear
+            Title = "Box Autofarm",
+            Content = "Disabled due to death.",
+            Duration = 5
         })
-    end)
-end)
+    end
+end
 
 local function DirectTeleportToNearestCrate()
+    local character = player.Character
+    if not character then return end
+    
     local rootPart = character:FindFirstChild("HumanoidRootPart")
     local tool = character:FindFirstChildOfClass("Tool")
     
     if not rootPart then return end
-    
-    local nearestBox = FindNearestBox()
-    if not nearestBox then return end
 
-    
     if not tool then
+        TTPM:SetValue(false)
         Fluent:Notify({
-            Title = "Autofarm",
+            Title = "Box Autofarm",
             Content = "Weapon not found.",
             Duration = 5
         })
-        TTPM:SetValue(false)
         return
     end
+    
+    local nearestBox = FindNearestBox()
+    if not nearestBox then return end
     
     local maxSpeed, minSpeed, distanceThreshold = 500, 200, 70
     
@@ -1520,55 +1621,79 @@ local function DirectTeleportToNearestCrate()
     tool:Activate()
 end
 
--- Add the connection for the toggle to run the teleport function
-TTPM:OnChanged(function()
-    if TTPM.Value then
-        -- Create a loop that runs while the toggle is enabled
-        task.spawn(function()
-            while TTPM.Value do
-                DirectTeleportToNearestCrate()
-                task.wait(0.1) -- Small delay between teleports
-            end
-        end)
-    end
-end)
-
-
-
+-- Variable to track teleporting state
+local teleporting = false
 
 -- 📌 Function to start teleport loop
 local function StartTeleportLoop()
-    AutofarmBoss:SetValue(false)
     if teleporting then return end
     teleporting = true
 
-    while TTPM.Value do
+    task.spawn(function()
+        while TTPM.Value do
+            if not HasWeaponEquipped() then
+                TTPM:SetValue(false)
+                Fluent:Notify({
+                    Title = "Box Autofarm",
+                    Content = "Weapon not found.",
+                    Duration = 5
+                })
+                break
+            end
+            
             DirectTeleportToNearestCrate()
-    end
-    teleporting = false
+            task.wait(0.1) -- Small delay between teleports
+        end
+        teleporting = false
+    end)
 end
 
-
--- Listening for the TTPM value change
-    TTPM:OnChanged(function()
-        if TTPM.Value then 
-            local tool = character:FindFirstChildOfClass("Tool")
-        if not tool then
+-- REMOVE DUPLICATE EVENT HANDLER - Keep only one OnChanged function
+TTPM:OnChanged(function()
+    if TTPM.Value then
+        if not HasWeaponEquipped() then
             TTPM:SetValue(false)
             Fluent:Notify({
-                Title = "Autofarm",
+                Title = "Box Autofarm",
                 Content = "Weapon not found.",
-                SubContent = "", -- Optional
-                Duration = 5 -- Set to nil to make the notification not disappear
+                Duration = 5
             })
         else
-            StartTeleportLoop() 
+            StartTeleportLoop()
         end
     end
 end)
 
-TTPM:SetValue(false)
+-- Set up character death connection and handle character changes
+local function setupCharacterConnections()
+    local character = player.Character
+    if character then
+        local humanoid = character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.Died:Connect(handlePlayerDeath)
+        end
+    end
+end
 
+-- Set up initial character connections
+setupCharacterConnections()
+
+-- Connect to CharacterAdded to handle respawns
+player.CharacterAdded:Connect(function(newCharacter)
+    setupCharacterConnections()
+    
+    -- If the toggle is still on after respawn (which shouldn't happen but just in case)
+    if TTPM.Value then
+        TTPM:SetValue(false)
+    end
+end)
+
+-- Connect to character respawn
+player.CharacterAdded:Connect(function(character)
+    notificationShown = false  -- Reset flag on respawn
+    local humanoid = character:WaitForChild("Humanoid")
+    humanoid.Died:Connect(handlePlayerDeath)
+end)
 
 -- Tabs.AutoCrates:AddParagraph({
 --     Title = "Disabled autofarm heads before enabling this.",

@@ -700,6 +700,10 @@ local SoundSpamname = secmisc:AddInput("SsN", {
 
 local SoundSpam = secmisc:AddToggle("SoundSpam", {Title = "Sound Spam", Default = false })
 
+-- Cache the emote lookup if the name is valid
+local lastEmoteName = nil
+local lastEmote = nil
+
 -- Recursive function to search for an emote by name within a parent
 local function searchForEmote(parent, targetName)
     for _, child in ipairs(parent:GetChildren()) do
@@ -724,29 +728,33 @@ SoundSpam:OnChanged(function()
         return
     end
 
+    -- If the toggle is turned on, start the sound spam loop
     if SoundSpam.Value then
-        -- Use task.spawn to run the sound spamming loop asynchronously
         task.spawn(function()
             while SoundSpam.Value do
-                task.wait(0.1)  -- Small wait to avoid freezing the script
+                task.wait(0.5)  -- Small wait to avoid freezing the script
 
                 -- Check again immediately after waiting
                 if not SoundSpam.Value then break end
 
-                if SoundSpamname.Value and SoundSpamname.Value ~= "" then
-                    local foundEmote = searchForEmote(emotesContainer, SoundSpamname.Value)
-                    if foundEmote then
-                        local song = foundEmote:FindFirstChild("Song")
+                local emoteName = SoundSpamname.Value
+                if emoteName and emoteName ~= "" then
+                    -- If the emote name is the same as the last one, skip searching
+                    if emoteName ~= lastEmoteName then
+                        lastEmote = searchForEmote(emotesContainer, emoteName)
+                        lastEmoteName = emoteName
+                    end
+
+                    if lastEmote then
+                        local song = lastEmote:FindFirstChild("Song")
                         if song then
-                            -- Final check before firing the event
-                            if SoundSpam.Value then
-                                local args = { song }
-                                repStorage:WaitForChild("Modules")
-                                    :WaitForChild("Utilities")
-                                    :WaitForChild("net")
-                                    :WaitForChild("EmoteSoundEvent")
-                                    :FireServer(unpack(args))
-                            end
+                            -- Fire the sound event
+                            local args = { song }
+                            repStorage:WaitForChild("Modules")
+                                :WaitForChild("Utilities")
+                                :WaitForChild("net")
+                                :WaitForChild("EmoteSoundEvent")
+                                :FireServer(unpack(args))
                         else
                             print("Song not found for the given emote name.")
                             break
@@ -763,10 +771,15 @@ SoundSpam:OnChanged(function()
         end)
     else
         -- Stop the sound when the toggle is turned off
-        if SoundSpamname.Value and SoundSpamname.Value ~= "" then
-            local foundEmote = searchForEmote(emotesContainer, SoundSpamname.Value)
-            if foundEmote then
-                local song = foundEmote:FindFirstChild("Song")
+        local emoteName = SoundSpamname.Value
+        if emoteName and emoteName ~= "" then
+            if emoteName ~= lastEmoteName then
+                lastEmote = searchForEmote(emotesContainer, emoteName)
+                lastEmoteName = emoteName
+            end
+
+            if lastEmote then
+                local song = lastEmote:FindFirstChild("Song")
                 if song then
                     local args = { song }
                     repStorage:WaitForChild("Modules")
@@ -778,11 +791,14 @@ SoundSpam:OnChanged(function()
                     print("Song not found for the given emote name.")
                 end
             else
+                print("Emote not found.")
             end
+        else
             print("Emote name is empty or invalid.")
         end
     end
 end)
+
 
 
 local brickk = secmisc:AddToggle("BrickToggle", {Title = "Anti Kill Brick", Description = "", Default = false})
@@ -1948,6 +1964,7 @@ Tabs.UpdateLogs:AddParagraph({
     Title = "Version: 1.5.5 (upcomming)",
     Content = 
               "\n[+] "
+
 })
 
 Tabs.UpdateLogs:AddParagraph({

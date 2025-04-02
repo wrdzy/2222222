@@ -18,9 +18,6 @@ for _, blacklistedId in ipairs(BlacklistedPlayers) do
     end
 end
 
-local isstarted = true
-
-if isstarted then
 
 
 
@@ -29,6 +26,9 @@ local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/d
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 local Version = "1.4.5"
 
+if _G.Interface == nil then
+-- _G.Interface = true
+    
 Fluent:Notify({
     Title = "Loading interface...",
     Content = "Interface is loading, please wait.",
@@ -459,11 +459,7 @@ end
 
 
 
-
-
-
-
-local secHitbox = Tabs.Misc:AddSection("Hitbox")
+local secHitbox = Tabs.Player:AddSection("Hitbox")
 
 local hitcolor = secHitbox:AddColorpicker("hitcolor", {
     Title = "Hitbox color",
@@ -661,6 +657,10 @@ end)
 
 
 
+
+
+
+
 local secmisc = Tabs.Misc:AddSection("Misc")
 
 -- WARNING: This is for educational purposes only to understand potential exploits
@@ -749,93 +749,138 @@ end)
 
 local miscserver = Tabs.Misc:AddSection("Servers")
 
-local function getServerList()
-    local Player = game.Players.LocalPlayer    
-    local Http = game:GetService("HttpService")
-    local Api = "https://games.roblox.com/v1/games/"
-    local _place = game.PlaceId
-    local _servers = Api.._place.."/servers/Public?limit=10"
+local startTime = tick() -- Accurate uptime tracking
+local players = game:GetService("Players")
+local runService = game:GetService("RunService")
 
-    local function ListServers(cursor)
-        local Raw = game:HttpGet(_servers .. ((cursor and "&cursor="..cursor) or ""))
-        return Http:JSONDecode(Raw)
+local TimeParagraph -- Declare it outside to update later
+
+-- Function to calculate and update the server stats
+local function updateServerStats()
+    local uptime = math.floor(tick() - startTime) -- Get uptime in seconds
+    local hours = math.floor(uptime / 3600)
+    local minutes = math.floor((uptime % 3600) / 60)
+    local seconds = uptime % 60
+    local formattedUptime = string.format("%02d:%02d:%02d", hours, minutes, seconds)
+
+    local playerCount = #players:GetPlayers()
+    local ping = math.floor(1000 * runService.Heartbeat:Wait()) -- Approximate ping in ms
+
+    local newTitle = string.format("⏳ Uptime: %s | 👥 Players: %d | 📶 Ping: %dms", formattedUptime, playerCount, ping)
+
+    -- If the TimeParagraph exists, remove and recreate it with the updated title
+    if TimeParagraph then
+        miscserver:Remove(TimeParagraph)
     end
 
-    local Servers = ListServers()
-    local ServerDetails = {}
-
-    -- Collect server information (ID, Region, Player Count, and Ping)
-    for _, server in pairs(Servers.data) do
-        local serverInfo = {
-            id = server.id,
-            region = server.region or "N/A",  -- Handle missing region information
-            playerCount = server.playing,
-            maxPlayers = server.maxPlayers,
-            ping = math.random(50, 200) -- Assuming ping, since this isn't provided by the API
-        }
-        table.insert(ServerDetails, serverInfo)
-    end
-
-    return ServerDetails
+    -- Recreate the paragraph with the new title
+    TimeParagraph = miscserver:AddParagraph({
+        Title = newTitle,
+        Content = ""
+    })
 end
 
--- Create the dropdown and initialize it
--- local SVD = miscserver:AddDropdown("Server List", {
---     Title = "Dropdown",
---     Values = {},  -- Initially empty values
---     Multi = false,
---     Default = 1,
--- })
+-- Create the paragraph initially with a default title
+updateServerStats()
 
--- -- Function to update the dropdown with current server list
--- local function updateDropdown()
---     local serverList = getServerList()  -- Fetch the latest server list
---     local formattedServers = {}
+-- Update every second
+task.spawn(function()
+    while task.wait(1) do
+        updateServerStats()
+    end
+end)
 
---     -- Format the server information into readable strings for the dropdown
---     for _, server in pairs(serverList) do
---         local serverString = string.format(
---             "Region: %s | Players: %d/%d | Ping: %dms",
---             server.region, server.playerCount, server.maxPlayers, server.ping
---         )
---         table.insert(formattedServers, serverString)
---     end
 
---     if #formattedServers > 0 then
---         SVD:SetValues(formattedServers)  -- Update the dropdown values with formatted server details
---     else
---         print("No servers found")
---     end
--- end
 
--- -- Update the dropdown initially
--- updateDropdown()  -- Initial update
 
--- Update the dropdown every 10 seconds using a coroutine to prevent blocking
--- spawn(function()
---     while true do
---         wait(10)  -- Adjust the wait time as needed (e.g., 10 seconds)
---         updateDropdown()
---     end
--- end)
 
--- -- Handle dropdown change (teleport to selected server)
--- SVD:OnChanged(function(Value)
---     local serverList = getServerList()  -- Fetch the latest server list
---     for _, server in pairs(serverList) do
---         -- Find the server corresponding to the selected dropdown value
---         local formattedString = string.format(
---             "Region: %s | Players: %d/%d | Ping: %dms",
---             server.region, server.playerCount, server.maxPlayers, server.ping
---         )
---         if formattedString == Value then
---             -- Teleport to the selected server
---             local TPS = game:GetService("TeleportService")
---             TPS:TeleportToPlaceInstance(game.PlaceId, server.id, game.Players.LocalPlayer)
---             break
---         end
---     end
--- end)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- Create the dropdown
+local SVD = miscserver:AddDropdown("Server List", {
+    Title = "Server Browser",
+    Values = {},  -- Will be populated once
+    Multi = false,
+    Default = nil,
+})
+
+-- Get server list once
+local function getServerList()
+    local serverList = {}
+    
+    local success, response = pcall(function()
+        return game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
+    end)
+    
+    if success then
+        success, response = pcall(function()
+            return game:GetService("HttpService"):JSONDecode(response)
+        end)
+        
+        if success and response and response.data then
+            for _, server in ipairs(response.data) do
+                if server.id ~= game.JobId then -- Don't include current server
+                    table.insert(serverList, {
+                        id = server.id,
+                        playing = server.playing or 0,
+                        maxPlayers = server.maxPlayers or 0,
+                        ping = server.ping or 0
+                    })
+                end
+            end
+        end
+    end
+    
+    return serverList
+end
+
+-- Store server IDs for teleporting
+_G.ServerIDs = {}
+
+-- Get servers once
+local servers = getServerList()
+local serverOptions = {}
+
+-- Format server information for dropdown
+for _, server in ipairs(servers) do
+    local option = string.format("Players: %d/%d | Ping: %dms", 
+        server.playing, server.maxPlayers, server.ping)
+    table.insert(serverOptions, option)
+    _G.ServerIDs[option] = server.id
+end
+
+-- Set values to dropdown
+SVD:SetValues(serverOptions)
+
+-- Handle selection
+SVD:OnChanged(function(Value)
+    local serverId = _G.ServerIDs[Value]
+    
+    if serverId then
+        Fluent:Notify({
+            Title = "Teleporting",
+            Content = "Joining server...",
+            Duration = 3
+        })
+        
+        -- Teleport directly without pcall to simplify
+        game:GetService("TeleportService"):TeleportToPlaceInstance(
+            game.PlaceId, serverId, game.Players.LocalPlayer
+        )
+    end
+end)
 
 -- Rejoin button logic
 miscserver:AddButton({
@@ -1597,7 +1642,7 @@ local Feedbackw = Tabs.Feedback:AddDropdown("Feedbackw", {
 
 
 local Feedbackz = Tabs.Feedback:AddInput("Feedbackz", {
-    Title = "Reason for rating (optional)",
+    Title = "Reason for rating",
     Default = "",
     Placeholder = "Give us your feedback",
     Numeric = false,
@@ -2099,6 +2144,10 @@ Fluent:Notify({
     Duration = 8
 })
 
-isstarted = false
-
+else
+    Fluent:Notify({
+        Title = "Script already running",
+        Content = "This script is already running.",
+        Duration = 3
+    })
 end

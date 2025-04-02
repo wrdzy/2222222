@@ -24,10 +24,10 @@ end
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-local Version = "1.4.5"
+local Version = "1.5.0"
 
 if _G.Interface == nil then
--- _G.Interface = true
+_G.Interface = true
     
 Fluent:Notify({
     Title = "Loading interface...",
@@ -69,8 +69,8 @@ local Tabs = {
     AutoCrates = Window:AddTab({ Title = "Crates", Icon = "box" }),
     -- Teleport = Window:AddTab({ Title = "Teleport", Icon = "compass" }),
     ESP = Window:AddTab({ Title = "ESP", Icon = "eye" }),
-    Feedback = Window:AddTab({ Title = "Feedback", Icon = "star" }),
     Credits = Window:AddTab({ Title = "Credits", Icon = "book" }),
+    UpdateLogs = Window:AddTab({ Title = "Update Logs", Icon = "scroll" }),
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
 
@@ -145,6 +145,7 @@ local Options = Fluent.Options
             humanoid.WalkSpeed = SliderWalk.Value
         end
     end)
+    -- Ensure this block is properly closed and does not interfere with subsequent code
     
     -- Ensure JumpPower stays set
     humanoid:GetPropertyChangedSignal("JumpPower"):Connect(function()
@@ -304,61 +305,82 @@ local Options = Fluent.Options
 
 
 
-    local GodMode = secplayer:AddToggle("GodMode", {Title = "God Mode", Default = false })
-    local eventsDeletedGod = false  -- Variable to track if the events were already deleted
-    local humanoid = nil
-    local characterEvents = player.Character:FindFirstChild("CharacterEvents")
+    local player = game.Players.LocalPlayer
+local GodMode = secplayer:AddToggle("GodMode", {Title = "God Mode", Default = false })
+local eventsDeletedGod = false  -- Variable to track if the events were already deleted
+local humanoid = nil
+local character = nil
+local characterEvents = nil
 
-    
-    GodMode:OnChanged(function(isToggled)
-        local player = game.Players.LocalPlayer
-        if not player or not player.Character then return end -- Ensure the player exists
-    
-        local characterEvents = player.Character:FindFirstChild("CharacterEvents")
-        if not characterEvents then return end -- Ensure CharacterEvents exists
-    
-        humanoid = player.Character:FindFirstChild("Humanoid")
-        
-        if isToggled then
-            -- Disable damage
-            if humanoid then
-                humanoid.Health = humanoid.MaxHealth -- Restore health to max
-                humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, false) -- Disable physics-based damage
-            end
-            -- Delete the events only once
-            if not eventsDeletedGod then
-                if characterEvents then
-                    for _, event in ipairs(characterEvents:GetChildren()) do
-                        event:Destroy()  -- Destroy each child (event) in the CharacterEvents folder
-                    end
-                end
-                eventsDeletedGod = true  -- Mark events as deleted
-            end
-        else
-            -- Enable damage again
-            if humanoid then
-                humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, true)  -- Re-enable physics-based damage
-            end
-    
-            -- Restore the deleted events
-            if eventsDeletedGod then
-                if characterEvents then
-                    Instance.new("RemoteEvent", characterEvents).Name = "Ability"
-                    Instance.new("RemoteEvent", characterEvents).Name = "ClientRagdollEvent"
-                    Instance.new("RemoteEvent", characterEvents).Name = "Headbutt"
-                    Instance.new("RemoteEvent", characterEvents).Name = "Hit"
-                    Instance.new("RemoteEvent", characterEvents).Name = "Impulse"
-                    Instance.new("RemoteEvent", characterEvents).Name = "Launch"
-                    Instance.new("RemoteEvent", characterEvents).Name = "PhysicsEvent"
-                    Instance.new("RemoteEvent", characterEvents).Name = "RagdollEvent"
-                end
-    
-                eventsDeletedGod = false  -- Reset the deletion flag
+-- Function to handle player death
+local function handlePlayerDeath()
+    -- If God Mode is active, delete the events again after respawn
+    if GodMode:Get() then
+        if characterEvents then
+            -- Loop through and remove all events
+            for _, event in ipairs(characterEvents:GetChildren()) do
+                event:Destroy()  -- Destroy each child (event) in the CharacterEvents folder
             end
         end
-    end)
+        eventsDeletedGod = true  -- Mark events as deleted
+    end
+end
+
+-- When the character respawns, update the humanoid and event handling
+player.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter
+    humanoid = character:WaitForChild("Humanoid")
+    characterEvents = character:FindFirstChild("CharacterEvents")
+
+    -- Reset the deletion flag on respawn
+    eventsDeletedGod = false
+
+    -- Connect the Died event to handle player death
+    humanoid.Died:Connect(handlePlayerDeath)
+
+    -- If GodMode is active, delete events after respawn
+    if GodMode:Get() then
+        if characterEvents then
+            for _, event in ipairs(characterEvents:GetChildren()) do
+                event:Destroy()  -- Destroy each child (event) in the CharacterEvents folder
+            end
+        end
+        eventsDeletedGod = true
+    end
+end)
+
+-- God Mode toggle logic
+GodMode:OnChanged(function(isToggled)
+    if not player or not player.Character then return end  -- Ensure the player exists
+    local characterEvents = player.Character:FindFirstChild("CharacterEvents")
+    if not characterEvents then return end  -- Ensure CharacterEvents exists
     
-    Options.GodMode:SetValue(false)
+    if isToggled then
+        -- Disable damage logic (just removing events as part of GodMode)
+        if characterEvents and not eventsDeletedGod then
+            for _, event in ipairs(characterEvents:GetChildren()) do
+                event:Destroy()  -- Destroy each child (event) in the CharacterEvents folder
+            end
+            eventsDeletedGod = true  -- Mark events as deleted
+        end
+    else
+        -- Restore events logic (if GodMode is toggled off)
+        if eventsDeletedGod then
+            -- Add events back if needed (this assumes you know the event names)
+            local events = {"Ability", "ClientRagdollEvent", "Headbutt", "Hit", "Impulse", "Launch", "PhysicsEvent", "RagdollEvent"}
+            for _, eventName in ipairs(events) do
+                local newEvent = Instance.new("RemoteEvent")
+                newEvent.Name = eventName
+                newEvent.Parent = characterEvents
+            end
+            eventsDeletedGod = false  -- Reset the deletion flag
+        end
+    end
+end)
+
+    
+      
+    
 
 
     local Killaura = secplayer:AddToggle("Killaura", {Title = "Kill aura", Default = false})
@@ -661,12 +683,147 @@ end)
 
 
 
+
+
+
+
 local secmisc = Tabs.Misc:AddSection("Misc")
 
--- WARNING: This is for educational purposes only to understand potential exploits
--- This demonstrates what you need to protect against
+local SoundSpamname = secmisc:AddInput("SsN", {
+    Title = "Emote name",
+    Description = "You must own the emote",
+    Default = nil, -- Set to nil as requested
+    Placeholder = "Input emote name",
+    Numeric = false, -- Only allows text
+    Finished = false, -- Only calls callback when you press enter
+})
 
-secmisc:AddButton({
+local SoundSpam = secmisc:AddToggle("SoundSpam", {Title = "Sound Spam", Default = false })
+
+-- Recursive function to search for an emote by name within a parent
+local function searchForEmote(parent, targetName)
+    for _, child in ipairs(parent:GetChildren()) do
+        if child.Name == targetName then
+            return child
+        elseif child:IsA("Folder") then
+            local found = searchForEmote(child, targetName)
+            if found then
+                return found
+            end
+        end
+    end
+    return nil
+end
+
+SoundSpam:OnChanged(function()
+    local repStorage = game:GetService("ReplicatedStorage")
+    local emotesContainer = repStorage:FindFirstChild("Emotes")
+    
+    if not emotesContainer then
+        print("Emotes not found.")
+        return
+    end
+
+    if SoundSpam.Value then
+        -- Use task.spawn to run the sound spamming loop asynchronously
+        task.spawn(function()
+            while SoundSpam.Value do
+                task.wait(0.1)  -- Small wait to avoid freezing the script
+
+                -- Check again immediately after waiting
+                if not SoundSpam.Value then break end
+
+                if SoundSpamname.Value and SoundSpamname.Value ~= "" then
+                    local foundEmote = searchForEmote(emotesContainer, SoundSpamname.Value)
+                    if foundEmote then
+                        local song = foundEmote:FindFirstChild("Song")
+                        if song then
+                            -- Final check before firing the event
+                            if SoundSpam.Value then
+                                local args = { song }
+                                repStorage:WaitForChild("Modules")
+                                    :WaitForChild("Utilities")
+                                    :WaitForChild("net")
+                                    :WaitForChild("EmoteSoundEvent")
+                                    :FireServer(unpack(args))
+                            end
+                        else
+                            print("Song not found for the given emote name.")
+                            break
+                        end
+                    else
+                        print("Invalid emote name.")
+                        break
+                    end
+                else
+                    print("Emote name is empty or invalid.")
+                    break
+                end
+            end
+        end)
+    else
+        -- Stop the sound when the toggle is turned off
+        if SoundSpamname.Value and SoundSpamname.Value ~= "" then
+            local foundEmote = searchForEmote(emotesContainer, SoundSpamname.Value)
+            if foundEmote then
+                local song = foundEmote:FindFirstChild("Song")
+                if song then
+                    local args = { song }
+                    repStorage:WaitForChild("Modules")
+                        :WaitForChild("Utilities")
+                        :WaitForChild("net")
+                        :WaitForChild("StopSoundEvent")
+                        :FireServer(unpack(args))
+                else
+                    print("Song not found for the given emote name.")
+                end
+            else
+            end
+            print("Emote name is empty or invalid.")
+        end
+    end
+end)
+
+
+local brickk = secmisc:AddToggle("BrickToggle", {Title = "Anti Kill Brick", Description = "", Default = false})
+local brickkyes = false
+
+brickk:OnChanged(function()
+    if brickk.Value then
+        brickkyes = true -- Remove `local` so it properly updates
+
+        -- Define position and size when toggle is enabled
+        local position = Vector3.new(50, -47, 1000)
+        local size = Vector3.new(10000, 10, 10000) -- Large but not extreme
+
+        -- Create the brick
+        local brick = Instance.new("Part")
+        brick.Size = size
+        brick.Anchored = true
+        brick.CanCollide = true
+        brick.Transparency = 0.5 -- Semi-visible
+        brick.BrickColor = BrickColor.new("Dark grey")
+        brick.Name = "BigBrick"
+        brick.Parent = game.Workspace -- Parent must be set before Position
+        brick.Position = position
+    else
+        -- Remove the brick if toggle is turned off
+        local existingBrick = game.Workspace:FindFirstChild("BigBrick")
+        if existingBrick then
+            existingBrick:Destroy()
+        end
+        brickkyes = false -- Reset variable when the brick is removed
+    end
+end)
+
+
+
+
+
+
+local secunl = Tabs.Misc:AddSection("Unlock")
+
+secunl:AddButton({
     Title = "Unlock all badge weapons",
     Description = "",
     Callback = function()
@@ -715,91 +872,9 @@ secmisc:AddButton({
 })
 
 
-local brickk = secmisc:AddToggle("BrickToggle", {Title = "Anti Kill Brick", Description = "", Default = false})
-local brickkyes = false
-
-brickk:OnChanged(function()
-    if brickk.Value then
-        brickkyes = true -- Remove `local` so it properly updates
-
-        -- Define position and size when toggle is enabled
-        local position = Vector3.new(50, -47, 1000)
-        local size = Vector3.new(10000, 10, 10000) -- Large but not extreme
-
-        -- Create the brick
-        local brick = Instance.new("Part")
-        brick.Size = size
-        brick.Anchored = true
-        brick.CanCollide = true
-        brick.Transparency = 0.5 -- Semi-visible
-        brick.BrickColor = BrickColor.new("Dark grey")
-        brick.Name = "BigBrick"
-        brick.Parent = game.Workspace -- Parent must be set before Position
-        brick.Position = position
-    else
-        -- Remove the brick if toggle is turned off
-        local existingBrick = game.Workspace:FindFirstChild("BigBrick")
-        if existingBrick then
-            existingBrick:Destroy()
-        end
-        brickkyes = false -- Reset variable when the brick is removed
-    end
-end)
 
 
 local miscserver = Tabs.Misc:AddSection("Servers")
-
-local startTime = tick() -- Accurate uptime tracking
-local players = game:GetService("Players")
-local runService = game:GetService("RunService")
-
-local TimeParagraph -- Declare it outside to update later
-
--- Function to calculate and update the server stats
-local function updateServerStats()
-    local uptime = math.floor(tick() - startTime) -- Get uptime in seconds
-    local hours = math.floor(uptime / 3600)
-    local minutes = math.floor((uptime % 3600) / 60)
-    local seconds = uptime % 60
-    local formattedUptime = string.format("%02d:%02d:%02d", hours, minutes, seconds)
-
-    local playerCount = #players:GetPlayers()
-    local ping = math.floor(1000 * runService.Heartbeat:Wait()) -- Approximate ping in ms
-
-    local newTitle = string.format("⏳ Uptime: %s | 👥 Players: %d | 📶 Ping: %dms", formattedUptime, playerCount, ping)
-
-    -- If the TimeParagraph exists, remove and recreate it with the updated title
-    if TimeParagraph then
-        miscserver:Remove(TimeParagraph)
-    end
-
-    -- Recreate the paragraph with the new title
-    TimeParagraph = miscserver:AddParagraph({
-        Title = newTitle,
-        Content = ""
-    })
-end
-
--- Create the paragraph initially with a default title
-updateServerStats()
-
--- Update every second
-task.spawn(function()
-    while task.wait(1) do
-        updateServerStats()
-    end
-end)
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1383,16 +1458,7 @@ local function DirectTeleportToNearestCrate()
     
     local nearestBox = FindNearestBox()
     if not nearestBox then return end
-    
-    if humanoid.Health <= 0 then
-        TTPM:SetValue(false)
-        Fluent:Notify({
-            Title = "Autofarm",
-            Content = "Disabled due to player death.",
-            Duration = 5
-        })
-        return
-    end
+
     
     if not tool then
         Fluent:Notify({
@@ -1632,7 +1698,55 @@ Tabs.ESP:AddParagraph({
 
 
 
-local Feedbackw = Tabs.Feedback:AddDropdown("Feedbackw", {
+
+
+-- Call Cleanup when appropriate (e.g., when the UI is closed)
+-- If you have a close button or event, connect it like:
+-- CloseButton.MouseButton1Click:Connect(Cleanup)
+
+    
+
+
+
+
+
+local secCredits = Tabs.Credits:AddSection("Credits")
+
+secCredits:AddParagraph({
+    Title = "Script made by wrdyz.94 on discord",
+    Content = ""
+})
+
+secCredits:AddButton({
+    Title = "Copy Discord Username",
+    Description = "",
+    Callback = function()
+        setclipboard("wrdyz.94") -- Replace with your actual Discord username
+        Fluent:Notify({
+            Title = "Discord Username Copied",
+            Content = "My discord username has been copied to clipboard",
+            Duration = 3
+        })
+    end
+})
+
+secCredits:AddButton({
+    Title = "Copy Discord Server Link",
+    Description = "Very old server i made a while ago",
+    Callback = function()
+        setclipboard("https://discord.gg/PWJ4cguJDb")
+        Fluent:Notify({
+            Title = "Discord Server Link Copied",
+            Content = "My discord Server Link has been copied to clipboard",
+            Duration = 3
+        })
+    end
+})
+
+
+local secfeedback = Tabs.Credits:AddSection("Feedback")
+
+local Feedbackw = secfeedback:AddDropdown("Feedbackw", {
     Title = "Rate this script",
     Description = "Give an honest rating for future imporvements",
     Values = {"⭐", "⭐⭐", "⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐⭐⭐"},
@@ -1641,7 +1755,7 @@ local Feedbackw = Tabs.Feedback:AddDropdown("Feedbackw", {
 })
 
 
-local Feedbackz = Tabs.Feedback:AddInput("Feedbackz", {
+local Feedbackz = secfeedback:AddInput("Feedbackz", {
     Title = "Reason for rating",
     Default = "",
     Placeholder = "Give us your feedback",
@@ -1816,7 +1930,7 @@ Feedbackz:OnChanged(function(Value)
 end)
 
 -- Add the submit button
-local SubmitButton = Tabs.Feedback:AddButton({
+local SubmitButton = secfeedback:AddButton({
     Title = "Submit Feedback",
     Description = "Send your rating and comments",
     Callback = function()
@@ -1824,47 +1938,36 @@ local SubmitButton = Tabs.Feedback:AddButton({
     end
 })
 
--- Call Cleanup when appropriate (e.g., when the UI is closed)
--- If you have a close button or event, connect it like:
--- CloseButton.MouseButton1Click:Connect(Cleanup)
-
-    
 
 
 
 
 
 
-Tabs.Credits:AddParagraph({
-    Title = "Script made by wrdyz.94 on discord",
-    Content = ""
+Tabs.UpdateLogs:AddParagraph({
+    Title = "Version: 1.5.5 (upcomming)",
+    Content = 
+              "\n[+] "
 })
 
-Tabs.Credits:AddButton({
-    Title = "Copy Discord Username",
-    Description = "",
-    Callback = function()
-        setclipboard("wrdyz.94") -- Replace with your actual Discord username
-        Fluent:Notify({
-            Title = "Discord Username Copied",
-            Content = "My discord username has been copied to clipboard",
-            Duration = 3
-        })
-    end
+Tabs.UpdateLogs:AddParagraph({
+    Title = "Version: 1.5.0",
+    Content =
+              "\n[+] Added a new autofarm for boss in Autofarm Tab"..
+              "\n[+] Added Sound Spam in Misc Tab"..
+              "\n[+] Moved Feedback system to Credits Tab"..
+              "\n[+] Unlock all badge weapons in Misc Tab"..
+              "\n[+] Added Servers section in Misc Tab"..
+              "\n[+] Moved Hitbox section to Player Tab"..
+              "\n[+] Added Update Logs Tab"..
+              "\n[-] Removed Heads autofarm due to patches"
 })
 
-Tabs.Credits:AddButton({
-    Title = "Copy Discord Server Link",
-    Description = "Very old server i made a while ago",
-    Callback = function()
-        setclipboard("https://discord.gg/PWJ4cguJDb")
-        Fluent:Notify({
-            Title = "Discord Server Link Copied",
-            Content = "My discord Server Link has been copied to clipboard",
-            Duration = 3
-        })
-    end
-})
+
+
+
+
+
 
  
 -- Check if player is an admin

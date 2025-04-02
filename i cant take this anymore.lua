@@ -1772,9 +1772,9 @@ local Feedbackw = secfeedback:AddDropdown("Feedbackw", {
 
 
 local Feedbackz = secfeedback:AddInput("Feedbackz", {
-    Title = "Reason for rating",
+    Title = "Ideas and Suggestions/bugs",
     Default = "",
-    Placeholder = "Give us your feedback",
+    Placeholder = "Some ideas?",
     Numeric = false,
     Finished = false, -- Changed to false to capture input as it's typed
     Callback = function(Value)

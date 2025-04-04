@@ -24,10 +24,18 @@ end
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-local Version = "1.5.0"
+local Version = "1.5.5"
 
 if _G.Interface == nil then
 _G.Interface = true
+
+local TeleportService = game:GetService("TeleportService")
+local Players = game:GetService("Players")
+
+
+
+
+
     
 Fluent:Notify({
     Title = "Loading interface...",
@@ -382,8 +390,7 @@ end)
       
     
 
-
-    local Killaura = secplayer:AddToggle("Killaura", {Title = "Kill aura", Default = false})
+local Killaura = secplayer:AddToggle("Killaura", {Title = "Kill aura", Default = false})
 local player = game:GetService("Players").LocalPlayer
 local hitEventThread = nil
 local notificationShown = false
@@ -393,10 +400,10 @@ local function getNearestPlayer()
     local closestPlayer = nil
     local shortestDistance = math.huge
     local myHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    
+
     if myHRP then
         for _, p in pairs(game:GetService("Players"):GetPlayers()) do
-            if p.Character and p ~= player then
+            if p ~= player and p.Character then
                 local targetHRP = p.Character:FindFirstChild("HumanoidRootPart")
                 if targetHRP then
                     local distance = (targetHRP.Position - myHRP.Position).Magnitude
@@ -408,76 +415,64 @@ local function getNearestPlayer()
             end
         end
     end
+
     return closestPlayer
 end
 
--- Function to fire the hit event
+-- Function to run Kill Aura loop
 local function fireHitEvent()
     while Killaura.Value do
-        local weapon = player.Character and player.Character:FindFirstChildOfClass("Tool")
+        local character = player.Character
+        local humanoid = character and character:FindFirstChild("Humanoid")
+
+        -- Wait until character exists and is alive
+        if not character or not humanoid or humanoid.Health <= 0 then
+            task.wait(1)
+            continue
+        end
+
+        local weapon = character:FindFirstChildOfClass("Tool")
         if not weapon then
-            Killaura:SetValue(false)
-            Fluent:Notify({
-                Title = "Kill Aura",
-                Content = "Weapon not found.",
-                Duration = 5
-            })
-            return
+            if not notificationShown then
+                Fluent:Notify({
+                    Title = "Kill Aura",
+                    Content = "Tool not found. Waiting...",
+                    Duration = 5
+                })
+                notificationShown = true
+            end
+
+            -- Wait until tool is found or Killaura is toggled off
+            repeat
+                task.wait(0.5)
+                character = player.Character
+                weapon = character and character:FindFirstChildOfClass("Tool")
+            until weapon or not Killaura.Value
+
+            notificationShown = false
         end
-        
-        local targetPlayer = getNearestPlayer()
-        if targetPlayer then
-            weapon.Events.Hit:FireServer(targetPlayer.Character.Humanoid)
+
+        if weapon then
+            local targetPlayer = getNearestPlayer()
+            if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Humanoid") then
+                weapon.Events.Hit:FireServer(targetPlayer.Character.Humanoid)
+            end
         end
-        task.wait(.1)
+
+        task.wait(0.1)
     end
 end
 
--- Function to handle player death
-local function handlePlayerDeath()
-    if Killaura.Value then
-        Killaura:SetValue(false)
-        Fluent:Notify({
-            Title = "Kill Aura",
-            Content = "Disabled due to death.",
-            Duration = 5
-        })
-    end
-end
-
--- Connect to character respawn
-player.CharacterAdded:Connect(function(character)
-    notificationShown = false  -- Reset flag on respawn
-    local humanoid = character:WaitForChild("Humanoid")
-    humanoid.Died:Connect(handlePlayerDeath)
-end)
-
--- Handle Killaura toggle
+-- When toggle is changed
 Killaura:OnChanged(function()
     if Killaura.Value then
-        local weapon = player.Character and player.Character:FindFirstChildOfClass("Tool")
-        if not weapon then
-            Killaura:SetValue(false)
-            Fluent:Notify({
-                Title = "Kill Aura",
-                Content = "Weapon not found.",
-                Duration = 5
-            })
-            return
-        end
         hitEventThread = task.spawn(fireHitEvent)
     else
-        hitEventThread = nil  -- Stop the loop
+        hitEventThread = nil
     end
 end)
 
--- Ensure the death event is connected if the character already exists
-if player.Character then
-    local humanoid = player.Character:FindFirstChild("Humanoid")
-    if humanoid then
-        humanoid.Died:Connect(handlePlayerDeath)
-    end
-end
+
 
 
 
@@ -689,64 +684,121 @@ end)
 
 local secmisc = Tabs.Misc:AddSection("Misc")
 
-local SoundSpamname = secmisc:AddInput("SsN", {
-    Title = "Emote name",
-    Description = "You must own the emote",
-    Default = nil, -- Set to nil as requested
-    Placeholder = "Input emote name",
-    Numeric = false, -- Only allows text
-    Finished = false, -- Only calls callback when you press enter
+local secmisc = secmisc -- Assuming this variable exists in your script
+
+local SoundSpamname = secmisc:AddDropdown("SsN", {
+    Title = "Sound Emote",
+    Description = "",
+    Values = {},  -- Will be populated with emotes that have sounds
+    Default = nil,
+    Multi = false,
 })
 
 local SoundSpam = secmisc:AddToggle("SoundSpam", {Title = "Sound Spam", Default = false })
 
--- Cache the emote lookup if the name is valid
-local lastEmoteName = nil
-local lastEmote = nil
+-- Cache the selected emote
+local selectedEmote = nil
 
--- Recursive function to search for an emote by name within a parent
-local function searchForEmote(parent, targetName)
-    for _, child in ipairs(parent:GetChildren()) do
-        if child.Name == targetName then
-            return child
-        elseif child:IsA("Folder") then
-            local found = searchForEmote(child, targetName)
-            if found then
-                return found
+-- Function to populate dropdown with emotes that have sounds
+local function populateSoundEmotes()
+    local repStorage = game:GetService("ReplicatedStorage")
+    local emotesContainer = repStorage:FindFirstChild("Emotes")
+    local newEmotesContainer = repStorage:FindFirstChild("Emotes.New") -- Look for Emotes.New folder as well
+    
+    -- Check if Emotes and Emotes.New exist
+    if not emotesContainer then
+        print("Emotes folder not found.")
+    end
+    if not newEmotesContainer then
+        print("Emotes.New folder not found.")
+    end
+
+    local soundEmotes = {}
+
+    -- Function to find all emotes with sounds in a given folder
+    local function findEmotesWithSounds(parent)
+        if not parent then return end  -- Ensure we don't try to access GetChildren on a nil parent
+        for _, child in ipairs(parent:GetChildren()) do
+            -- Check if the child is of type Sound or has a sound component (Audio/Sound, etc.)
+            if child:IsA("Sound") or child:IsA("Audio") or child:FindFirstChildOfClass("Sound") then
+                table.insert(soundEmotes, child.Name)
+            end
+            
+            -- If it's a folder, recursively check its children
+            if child:IsA("Folder") then
+                findEmotesWithSounds(child)
             end
         end
     end
-    return nil
+
+    -- Check both Emotes and Emotes.New for sound emotes
+    findEmotesWithSounds(emotesContainer)
+    findEmotesWithSounds(newEmotesContainer)
+
+    -- Update dropdown with found sound emotes
+    if #soundEmotes > 0 then
+        SoundSpamname:SetValues(soundEmotes)
+    else
+        print("No emotes with sounds found.")
+    end
 end
+
+-- Initialize dropdown with sound emotes
+task.spawn(populateSoundEmotes)
+
+-- Function to find an emote by name
+local function findEmote(emoteName)
+    local repStorage = game:GetService("ReplicatedStorage")
+    local emotesContainer = repStorage:FindFirstChild("Emotes")
+    local newEmotesContainer = repStorage:FindFirstChild("Emotes.New")
+    
+    if not emotesContainer and not newEmotesContainer then return nil end
+
+    -- Function to search through emotes and find the right one
+    local function searchForEmote(parent, targetName)
+        if not parent then return nil end
+        for _, child in ipairs(parent:GetChildren()) do
+            if child.Name == targetName and (child:IsA("Sound") or child:IsA("Audio") or child:FindFirstChildOfClass("Sound")) then
+                return child
+            elseif child:IsA("Folder") then
+                local found = searchForEmote(child, targetName)
+                if found then
+                    return found
+                end
+            end
+        end
+        return nil
+    end
+
+    -- Search in both Emotes and Emotes.New folders
+    return searchForEmote(emotesContainer, emoteName) or searchForEmote(newEmotesContainer, emoteName)
+end
+
+-- Handle dropdown selection
+SoundSpamname:OnChanged(function(value)
+    selectedEmote = findEmote(value)
+end)
 
 SoundSpam:OnChanged(function()
     local repStorage = game:GetService("ReplicatedStorage")
-    local emotesContainer = repStorage:FindFirstChild("Emotes")
     
-    if not emotesContainer then
-        print("Emotes not found.")
-        return
-    end
-
     -- If the toggle is turned on, start the sound spam loop
     if SoundSpam.Value then
         task.spawn(function()
             while SoundSpam.Value do
                 task.wait(0.5)  -- Small wait to avoid freezing the script
-
+                
                 -- Check again immediately after waiting
                 if not SoundSpam.Value then break end
-
+                
                 local emoteName = SoundSpamname.Value
                 if emoteName and emoteName ~= "" then
-                    -- If the emote name is the same as the last one, skip searching
-                    if emoteName ~= lastEmoteName then
-                        lastEmote = searchForEmote(emotesContainer, emoteName)
-                        lastEmoteName = emoteName
+                    if not selectedEmote then
+                        selectedEmote = findEmote(emoteName)
                     end
-
-                    if lastEmote then
-                        local song = lastEmote:FindFirstChild("Song")
+                    
+                    if selectedEmote then
+                        local song = selectedEmote:FindFirstChildOfClass("Sound") or selectedEmote:FindFirstChild("Song")
                         if song then
                             -- Fire the sound event
                             local args = { song }
@@ -756,48 +808,48 @@ SoundSpam:OnChanged(function()
                                 :WaitForChild("EmoteSoundEvent")
                                 :FireServer(unpack(args))
                         else
-                            print("Song not found for the given emote name.")
+                            Fluent:Notify({
+                                Title = "Sound Spam",
+                                Content = "Emote not found.",
+                                Duration = 2
+                            })
                             break
                         end
                     else
-                        print("Invalid emote name.")
+                        Fluent:Notify({
+                            Title = "Sound Spam",
+                            Content = "Please select a valid emote.",
+                            Duration = 2
+                        })
                         break
                     end
-                else
-                    print("Emote name is empty or invalid.")
-                    break
                 end
             end
         end)
     else
         -- Stop the sound when the toggle is turned off
         local emoteName = SoundSpamname.Value
-        if emoteName and emoteName ~= "" then
-            if emoteName ~= lastEmoteName then
-                lastEmote = searchForEmote(emotesContainer, emoteName)
-                lastEmoteName = emoteName
-            end
-
-            if lastEmote then
-                local song = lastEmote:FindFirstChild("Song")
-                if song then
-                    local args = { song }
-                    repStorage:WaitForChild("Modules")
-                        :WaitForChild("Utilities")
-                        :WaitForChild("net")
-                        :WaitForChild("StopSoundEvent")
-                        :FireServer(unpack(args))
-                else
-                    print("Song not found for the given emote name.")
-                end
+        if emoteName and emoteName ~= "" and selectedEmote then
+            local song = selectedEmote:FindFirstChildOfClass("Sound") or selectedEmote:FindFirstChild("Song")
+            if song then
+                local args = { song }
+                repStorage:WaitForChild("Modules")
+                    :WaitForChild("Utilities")
+                    :WaitForChild("net")
+                    :WaitForChild("StopSoundEvent")
+                    :FireServer(unpack(args))
             else
-                print("Emote not found.")
+                Fluent:Notify({
+                    Title = "Sound Spam",
+                    Content = "Emote not found.",
+                    Duration = 2
+                })
             end
-        else
-            print("Emote name is empty or invalid.")
         end
     end
 end)
+
+
 
 
 
@@ -875,15 +927,22 @@ secunl:AddButton({
                         end
                     end
                 end
-
-                    else
-                        Fluent:Notify({
-                            Title = "Error",
-                            Content = "Badge ID not found in statue.",
-                            Duration = 5
-                        })
-                    end
-                end
+            else
+                -- No badges found
+                Fluent:Notify({
+                    Title = "Error",
+                    Content = "You need to own at least one badge",
+                    Duration = 5
+                })
+            end
+        else
+            -- Request failed
+            Fluent:Notify({
+                Title = "Error",
+                Content = "Failed to fetch badge data",
+                Duration = 5
+            })
+        end
     end
 })
 
@@ -1113,17 +1172,24 @@ local secautoBoss = Tabs.Autofarm:AddSection("Boss")
 
 local AutofarmBoss = secautoBoss:AddToggle("AutofarmBoss", {Title = "Autofarm Boss", Default = false})
 local player = game:GetService("Players").LocalPlayer
-local hitEventThread = nil
-local teleportThread = nil
-local isRunning = false  -- Flag to prevent multiple instances
+local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
--- Improved teleport settings
-local baseLerpSpeed = 0.05      -- Base lerp speed for smooth movement
-local maxLerpSpeed = 0.3        -- Maximum lerp speed for close distances
-local minLerpSpeed = 0.01       -- Minimum lerp speed for far distances
-local distanceThreshold = 50    -- Distance threshold for lerp adjustment
-local closeRange = 5            -- Distance considered "close" to boss
+local hitEventThread = nil
+local teleportThread = nil
+local isRunning = false
+
+-- Tween config
+local tweenTime = 0.5
+local tweenInfo = TweenInfo.new(
+    tweenTime,
+    Enum.EasingStyle.Quad,
+    Enum.EasingDirection.Out,
+    0,
+    false,
+    0
+)
+
 local positionOffset = Vector3.new(0, 2, 2)  -- Offset from boss position
 
 -- Function to check if the boss has spawned
@@ -1134,25 +1200,15 @@ end
 
 -- Function to safely get the boss and its humanoid
 local function getBoss()
-    if not isBossSpawned() then
-        return nil, nil
-    end
-    
+    if not isBossSpawned() then return nil, nil end
     local boss = workspace.Boss.KingBuffoon
     local bossHumanoid = boss:FindFirstChild("Humanoid")
     return boss, bossHumanoid
 end
 
--- Enhanced function to lerp to the boss position with better dynamics
-local function enhancedLerpToBoss()
-    local lastPosition = nil
-    local arrivalTime = 0
-    local randomOffset = Vector3.new(0, 0, 0)
-    local stuckCounter = 0
-    local positionUpdateTime = 0
-    
+-- Tween teleport to the boss and disable after boss dies
+local function tweenToBoss()
     while AutofarmBoss.Value and isRunning do
-        -- Safety check to prevent crashing
         if not isBossSpawned() then
             task.defer(function()
                 AutofarmBoss:SetValue(false)
@@ -1165,100 +1221,44 @@ local function enhancedLerpToBoss()
             break
         end
 
-        local boss, _ = getBoss()
-        if boss and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        local boss, bossHumanoid = getBoss()
+        if boss and bossHumanoid and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            -- Check if boss is defeated
+            if bossHumanoid.Health <= 0 then
+                task.defer(function()
+                    AutofarmBoss:SetValue(false)
+                end)
+                Fluent:Notify({
+                    Title = "Autofarm Boss",
+                    Content = "Boss defeated! Autofarm disabled.",
+                    Duration = 5
+                })
+                break
+            end
+
             local myHRP = player.Character:FindFirstChild("HumanoidRootPart")
             local bossHRP = boss:FindFirstChild("HumanoidRootPart")
 
             if myHRP and bossHRP then
-                local currentPos = myHRP.Position
                 local targetPos = bossHRP.Position + positionOffset
-                local distance = (currentPos - targetPos).Magnitude
-                
-                -- Check if we're stuck in the same position
-                if lastPosition then
-                    local movementDelta = (currentPos - lastPosition).Magnitude
-                    if movementDelta < 0.1 and distance > closeRange then
-                        stuckCounter = stuckCounter + 1
-                    else
-                        stuckCounter = 0
-                    end
-                end
-                
-                -- If we seem stuck, apply a random offset to break out
-                if stuckCounter > 10 then
-                    randomOffset = Vector3.new(
-                        math.random(-3, 3),
-                        math.random(0, 5),
-                        math.random(-3, 3)
-                    )
-                    stuckCounter = 0
-                    positionUpdateTime = tick() + 0.5
-                end
-                
-                -- Apply random offset if needed
-                local actualTargetPos = targetPos
-                if tick() < positionUpdateTime then
-                    actualTargetPos = targetPos + randomOffset
-                else
-                    randomOffset = Vector3.new(0, 0, 0)
-                end
-                
-                -- Dynamic lerp speed calculation
-                local dynamicLerpSpeed = baseLerpSpeed
-                
-                if distance > distanceThreshold then
-                    -- Far away - fast initial approach
-                    dynamicLerpSpeed = maxLerpSpeed
-                elseif distance < closeRange then
-                    -- Very close - precision movement
-                    dynamicLerpSpeed = minLerpSpeed * 3
-                    
-                    -- If we've been close for a while, occasionally circle the boss
-                    if arrivalTime == 0 then
-                        arrivalTime = tick()
-                    elseif tick() - arrivalTime > 2 then
-                        local angle = (tick() % 6.28) -- Full circle over time
-                        local circleRadius = 3
-                        local circleOffset = Vector3.new(
-                            math.cos(angle) * circleRadius,
-                            1,
-                            math.sin(angle) * circleRadius
-                        )
-                        actualTargetPos = bossHRP.Position + circleOffset
-                    end
-                else
-                    -- Medium distance - dynamic scaling based on distance
-                    local scaleFactor = 1 - (distance / distanceThreshold)
-                    dynamicLerpSpeed = minLerpSpeed + scaleFactor * (maxLerpSpeed - minLerpSpeed)
-                    arrivalTime = 0
-                end
-                
-                -- Apply lerp with dynamic speed
-                local newPosition = currentPos:Lerp(actualTargetPos, dynamicLerpSpeed)
-                
-                -- Set the new position with orientation facing the boss
-                pcall(function()
-                    local lookVector = (bossHRP.Position - newPosition).Unit
-                    local rightVector = Vector3.new(0, 1, 0):Cross(lookVector).Unit
-                    local upVector = lookVector:Cross(rightVector)
-                    
-                    myHRP.CFrame = CFrame.new(newPosition) * CFrame.fromMatrix(newPosition, rightVector, upVector, -lookVector)
-                end)
-                
-                -- Save position for stuck detection
-                lastPosition = currentPos
+
+                local tween = TweenService:Create(
+                    myHRP,
+                    tweenInfo,
+                    {CFrame = CFrame.new(targetPos, bossHRP.Position)}
+                )
+                tween:Play()
+                tween.Completed:Wait()
             end
         end
 
-        task.wait(0.01)  -- Shorter delay for smoother movement
+        task.wait(0.1)
     end
 end
 
 -- Function to fire the hit event
 local function fireHitEvent()
     while AutofarmBoss.Value and isRunning do
-        -- Safety check to prevent crashing
         if not isBossSpawned() then
             task.defer(function()
                 AutofarmBoss:SetValue(false)
@@ -1270,8 +1270,7 @@ local function fireHitEvent()
             })
             break
         end
-        
-        -- Check if player has weapon
+
         local weapon = player.Character and player.Character:FindFirstChildOfClass("Tool")
         if not weapon then
             task.defer(function()
@@ -1284,31 +1283,26 @@ local function fireHitEvent()
             })
             break
         end
-        
-        -- Safely attempt to fire hit event
+
         local _, bossHumanoid = getBoss()
         if bossHumanoid and player.Character and weapon then
-            local hitEvent = weapon:FindFirstChild("Events") and 
-                           weapon.Events:FindFirstChild("Hit")
-                    
+            local hitEvent = weapon:FindFirstChild("Events") and weapon.Events:FindFirstChild("Hit")
             if hitEvent then
                 pcall(function()
                     hitEvent:FireServer(bossHumanoid)
                 end)
             else
-                -- Try to use the weapon's Activate function as backup
                 pcall(function()
                     weapon:Activate()
                 end)
             end
         end
-        
-        -- Vary attack interval slightly to appear more natural
+
         task.wait(0.3 + math.random() * 0.1)
     end
 end
 
--- Function to handle player death
+-- Handle player death
 local function handlePlayerDeath()
     if AutofarmBoss.Value then
         task.defer(function()
@@ -1326,10 +1320,8 @@ end
 player.CharacterAdded:Connect(function(character)
     local humanoid = character:WaitForChild("Humanoid")
     humanoid.Died:Connect(handlePlayerDeath)
-    
-    -- Additionally, check if autofarm is running after respawn
+
     if AutofarmBoss.Value then
-        -- Delay check to allow character to fully load
         task.delay(1, function()
             local weapon = character:FindFirstChildOfClass("Tool")
             if not weapon then
@@ -1349,7 +1341,6 @@ end)
 -- Listen for workspace changes to detect boss spawn/despawn
 workspace.ChildAdded:Connect(function(child)
     if child.Name == "Boss" then
-        -- Wait for KingBuffoon to load
         child.ChildAdded:Connect(function(bossChild)
             if bossChild.Name == "KingBuffoon" then
                 Fluent:Notify({
@@ -1375,9 +1366,9 @@ workspace.ChildRemoved:Connect(function(child)
     end
 end)
 
--- Constantly check if boss exists and toggle off if not
+-- Constant boss check loop
 task.spawn(function()
-    while wait(1) do  -- Check every second
+    while wait(1) do
         if AutofarmBoss.Value and not isBossSpawned() then
             task.defer(function()
                 AutofarmBoss:SetValue(false)
@@ -1394,13 +1385,10 @@ end)
 -- Handle AutofarmBoss toggle
 AutofarmBoss:OnChanged(function()
     if AutofarmBoss.Value then
-        -- Immediately check if boss exists - toggle off if not
         if not isBossSpawned() then
-            -- Use task.defer to prevent toggle recursion
             task.defer(function()
                 AutofarmBoss:SetValue(false)
             end)
-            
             Fluent:Notify({
                 Title = "Autofarm Boss",
                 Content = "Boss not found.",
@@ -1408,15 +1396,12 @@ AutofarmBoss:OnChanged(function()
             })
             return
         end
-        
-        -- Check if player has a weapon
+
         local weapon = player.Character and player.Character:FindFirstChildOfClass("Tool")
         if not weapon then
-            -- Use task.defer to prevent toggle recursion
             task.defer(function()
                 AutofarmBoss:SetValue(false)
             end)
-            
             Fluent:Notify({
                 Title = "Autofarm Boss",
                 Content = "Weapon not found.",
@@ -1424,24 +1409,18 @@ AutofarmBoss:OnChanged(function()
             })
             return
         end
-        
-        -- Start autofarm only if not already running
+
         if not isRunning then
             isRunning = true
-            
-            -- Start both threads safely
             hitEventThread = task.spawn(fireHitEvent)
-            teleportThread = task.spawn(enhancedLerpToBoss)
+            teleportThread = task.spawn(tweenToBoss)
         end
     else
-        -- Clean shutdown when toggled off
         isRunning = false
-        
         if hitEventThread then
             task.cancel(hitEventThread)
             hitEventThread = nil
         end
-        
         if teleportThread then
             task.cancel(teleportThread)
             teleportThread = nil
@@ -1449,7 +1428,7 @@ AutofarmBoss:OnChanged(function()
     end
 end)
 
--- Ensure the death event is connected if the character already exists
+-- Connect death handler if character already exists
 if player.Character then
     local humanoid = player.Character:FindFirstChild("Humanoid")
     if humanoid then
@@ -1457,20 +1436,183 @@ if player.Character then
     end
 end
 
--- local BossTog = secautoBoss:AddToggle("Boss Server Hop", {Title = "Boss Server Hop", Default = false })
 
--- BossTog:OnChanged(function()
---     if BossTog and isBossSpawned() then
---         local TPS = game:GetService("TeleportService")
---         local player = game.Players.LocalPlayer
---         local boss = workspace:FindFirstChild("Boss")
---         if boss and boss:FindFirstChild("KingBuffoon") then
---             TPS:TeleportToPlaceInstance(game.PlaceId, boss.KingBuffoon.Name, player)
---         end
---     else
---         Fluent:Notify({Title = "Boss Server Hop", Content = "Boss not found.", Duration = 5})
---     end
--- end)
+
+
+
+
+
+
+
+
+
+
+
+secautoBoss:AddButton({
+    Title = "Auto Server Hop to find boss",
+    Description = "Automatically hops servers until King Buffoon is found",
+    Callback = function()
+        local fileName = "AutoServerHop.lua"
+
+        local fullScript = [[
+            local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+            local TeleportService = game:GetService("TeleportService")
+            local HttpService = game:GetService("HttpService")
+            local Players = game:GetService("Players")
+            local Workspace = game:GetService("Workspace")
+
+            local PLACE_ID = game.PlaceId
+            local BOSS_NAME = "KingBuffoon"
+            local CACHE_FILE = "NotSameServers.json"
+            local SCRIPT_FILE = "AutoServerHop.lua"
+            local serverCache = {}
+            local currentHour = os.date("!*t").hour
+            local nextPageCursor = ""
+
+            local function Notify(title, content)
+                if Fluent then
+                    Fluent:Notify({
+                        Title = title,
+                        Content = content,
+                        Duration = 25
+                    })
+                else
+                    print("[" .. title .. "] " .. content)
+                end
+            end
+
+            local function LoadCache()
+                if isfile(CACHE_FILE) then
+                    local success, decoded = pcall(function()
+                        return HttpService:JSONDecode(readfile(CACHE_FILE))
+                    end)
+                    if success and tonumber(decoded[1]) == currentHour then
+                        serverCache = decoded
+                        return
+                    else
+                        delfile(CACHE_FILE)
+                    end
+                end
+                serverCache = { tostring(currentHour) }
+                writefile(CACHE_FILE, HttpService:JSONEncode(serverCache))
+            end
+
+            local function IsBossPresent()
+                local boss = Workspace:FindFirstChild("Boss")
+                if boss and boss:FindFirstChild(BOSS_NAME) then
+                    Notify("Boss Found", "👑 King Buffoon detected!")
+                    return true
+                end
+                return false
+            end
+
+            local function HttpGetWithRetry(url)
+                local success, result = pcall(function()
+                    return game:HttpGet(url)
+                end)
+                if success then
+                    return result
+                elseif tostring(result):find("429") then
+                    Notify("Rate Limit", "Rate limit hit. Waiting 20 seconds before retrying...")
+                    wait(20)
+                    return HttpGetWithRetry(url)
+                else
+                    warn("HTTP error:", result)
+                    return nil
+                end
+            end
+
+            local function ServerAlreadyUsed(id)
+                for _, sid in ipairs(serverCache) do
+                    if tostring(sid) == tostring(id) then
+                        return true
+                    end
+                end
+                return false
+            end
+
+            local function AddToCache(id)
+                table.insert(serverCache, tostring(id))
+                writefile(CACHE_FILE, HttpService:JSONEncode(serverCache))
+            end
+
+            local function TeleportToServer(id)
+                queue_on_teleport(readfile(SCRIPT_FILE))
+                wait(1)
+                TeleportService:TeleportToPlaceInstance(PLACE_ID, id, Players.LocalPlayer)
+            end
+
+            local function CheckAndHop()
+                local url = "https://games.roblox.com/v1/games/" .. PLACE_ID .. "/servers/Public?sortOrder=Asc&limit=100"
+                if nextPageCursor ~= "" then
+                    url = url .. "&cursor=" .. nextPageCursor
+                end
+
+                local data = HttpGetWithRetry(url)
+                if not data then return false end
+
+                local success, decoded = pcall(function()
+                    return HttpService:JSONDecode(data)
+                end)
+                if not success then
+                    warn("Failed to decode server data")
+                    return false
+                end
+
+                nextPageCursor = decoded.nextPageCursor or ""
+
+                for _, server in ipairs(decoded.data) do
+                    if tonumber(server.playing) < tonumber(server.maxPlayers) then
+                        if not ServerAlreadyUsed(server.id) then
+                            AddToCache(server.id)
+                            TeleportToServer(server.id)
+                            return true
+                        end
+                    end
+                end
+                return false
+            end
+
+            coroutine.wrap(function()
+                repeat wait() until game:IsLoaded()
+                wait(1)
+
+                Notify("Auto Hop", "Searching for King Buffoon...")
+
+                LoadCache()
+
+                while not IsBossPresent() do
+                    local success = CheckAndHop()
+                    if not success and nextPageCursor == "" then
+                        Notify("Done", "No servers left to search.")
+                        break
+                    end
+                    wait(5)
+                end
+            end)()
+        ]]
+
+        -- ✅ Write script to file
+        writefile(fileName, fullScript)
+        print("✅ AutoServerHop.lua written!")
+
+        -- ✅ Run it immediately
+        local func, err = loadstring(fullScript)
+        if func then
+            func()
+        else
+            warn("❌ Error loading main script:", err)
+        end
+    end
+})
+
+
+
+
+
+
+
+
     
 
 -- 📌 UI Section
@@ -1936,9 +2078,7 @@ local function SendFeedbackToWebhook()
         return
     end
     
-    -- Debug print to check values before sending
-    print("Rating:", currentRating)
-    print("Comment:", currentFeedbackText)
+
     
     local webhookUrl = "https://discord.com/api/webhooks/1350787764874121217/Jv3AwSgD-viEpIu8cfjEm1MxFqJ62e9kEdIyDVKuf4gH2Hl6Hf3fwBJHok3Qouhwo3TE"
     
@@ -2048,9 +2188,7 @@ local function SendFeedbackToWebhook()
         
         -- Disable the inputs after submission
 
-    else
-        print("Error sending feedback:", response)
-        
+    else        
         Fluent:Notify({
             Title = "Error",
             Content = "Failed to send feedback. Please try again later.",
@@ -2067,7 +2205,6 @@ end)
 
 Feedbackz:OnChanged(function(Value)
     currentFeedbackText = Value
-    print("Feedback text updated:", Value) -- Debug print
 end)
 
 -- Add the submit button
@@ -2086,9 +2223,23 @@ local SubmitButton = secfeedback:AddButton({
 
 
 Tabs.UpdateLogs:AddParagraph({
-    Title = "Version: 1.5.5 (upcomming)",
+    Title = "Version: 1.6.0 (upcomming)",
     Content = 
               "\n[+] "
+
+})
+
+
+
+
+
+Tabs.UpdateLogs:AddParagraph({
+    Title = "Version: 1.5.5",
+    Content = 
+              "\n[+] Fixed Boss autofarm teleporting to the wrong position"..
+              "\n[+] Fixed Boss autofarm not working when the boss is not spawned"..
+              "\n[+] Added Boss Server Hop"..
+              "\n[+] Added all the emotes to sound spam"
 
 })
 
@@ -2208,7 +2359,6 @@ if isAdmin then
                         Duration = 3
                     })
                     
-                    print("Copied player info to clipboard:", infoString)
                 end
             end
         end)
@@ -2261,6 +2411,10 @@ SaveManager:LoadAutoloadConfig()
 
 
 
+
+
+
+
 -- Check if the player is not the specified user ID
 if game.Players.LocalPlayer.UserId ~= 3794743195 then
     local webhookUrl = "https://discord.com/api/webhooks/1349430348009836544/Ks06ThtdZXXCpKCO4ocX8jINPRXlO-0qZg8pzNdaNjz3oGtIMotK13p0Q3ns-rmuhCqU"
@@ -2281,7 +2435,6 @@ if game.Players.LocalPlayer.UserId ~= 3794743195 then
             Headers = headers,
             Body = body
         })
-        print("Sent")
     end
 
     function SendMessageEMBED(url, embed)
@@ -2308,7 +2461,6 @@ if game.Players.LocalPlayer.UserId ~= 3794743195 then
             Headers = headers,
             Body = body
         })
-        print("Sent")
     end
 
     function SendPlayerInfo(url)
@@ -2391,7 +2543,7 @@ Fluent:Notify({
 
 else
     Fluent:Notify({
-        Title = "Script already running",
+        Title = "Interface",
         Content = "This script is already running.",
         Duration = 3
     })

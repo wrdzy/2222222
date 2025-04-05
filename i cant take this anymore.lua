@@ -2373,7 +2373,6 @@ Tabs.UpdateLogs:AddParagraph({
     Title = "Version: 1.5.5",
     Content = 
               "\n[+] Fixed Boss autofarm teleporting to the wrong position"..
-              "\n[+] Fixed Boss autofarm not working when the boss is not spawned"..
               "\n[+] Added Boss Server Hop in Autofarm Tab"..
               "\n[+] Added all the emotes with sound to Sound Spam"..
               "\n[+] Added Swing Speed modifier"..

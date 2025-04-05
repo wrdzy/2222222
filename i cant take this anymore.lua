@@ -1385,6 +1385,9 @@ end)
 -- Handle AutofarmBoss toggle
 AutofarmBoss:OnChanged(function()
     if AutofarmBoss.Value then
+        -- Enable GodMode when AutofarmBoss is turned on
+        GodMode:SetValue(true)
+
         if not isBossSpawned() then
             task.defer(function()
                 AutofarmBoss:SetValue(false)
@@ -1425,6 +1428,9 @@ AutofarmBoss:OnChanged(function()
             task.cancel(teleportThread)
             teleportThread = nil
         end
+
+        -- Disable GodMode when AutofarmBoss is turned off
+        GodMode:SetValue(false)
     end
 end)
 
@@ -1448,163 +1454,207 @@ end
 
 
 
+
+
 secautoBoss:AddButton({
     Title = "Auto Server Hop to find boss",
     Description = "Automatically hops servers until King Buffoon is found",
     Callback = function()
-        local fileName = "AutoServerHop.lua"
+        -- Attempt to load Fluent
+        local Fluent = nil
+        local success, result = pcall(function()
+            return loadstring(game:HttpGet("https://github.com/dawidscripts/Fluent/releases/latest/download/main.lua"))()
+        end)
 
-        local fullScript = [[
-            local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-            local TeleportService = game:GetService("TeleportService")
-            local HttpService = game:GetService("HttpService")
-            local Players = game:GetService("Players")
-            local Workspace = game:GetService("Workspace")
+        if success then
+            Fluent = result
+        end
 
-            local PLACE_ID = game.PlaceId
-            local BOSS_NAME = "KingBuffoon"
-            local CACHE_FILE = "NotSameServers.json"
-            local SCRIPT_FILE = "AutoServerHop.lua"
-            local serverCache = {}
-            local currentHour = os.date("!*t").hour
-            local nextPageCursor = ""
+        local TeleportService = game:GetService("TeleportService")
+        local HttpService = game:GetService("HttpService")
+        local Players = game:GetService("Players")
+        local Workspace = game:GetService("Workspace")
+        local StarterGui = game:GetService("StarterGui")
 
-            local function Notify(title, content)
-                if Fluent then
-                    Fluent:Notify({
-                        Title = title,
-                        Content = content,
-                        Duration = 25
-                    })
+        local PLACE_ID = game.PlaceId
+        local BOSS_NAME = "KingBuffoon"
+        local CACHE_FILE = "NotSameServers.json"
+        local SCRIPT_FILE = "AutoServerHop.lua"
+        local serverCache = {}
+        local currentHour = os.date("!*t").hour
+        local nextPageCursor = ""
+
+        local function Notify(title, content)
+            if Fluent then
+                -- Use Fluent notification system if available
+                Fluent:Notify({
+                    Title = title,
+                    Content = content,
+                    Duration = 5
+                })
+            else
+                -- Use Roblox's basic notification system if Fluent is not available
+                StarterGui:SetCore("SendNotification", {
+                    Title = title,
+                    Text = content,
+                    Icon = "rbxassetid://6230182946", -- Optional, you can replace with your own icon ID if desired
+                    Duration = 5
+                })
+            end
+        end
+
+        local function LoadCache()
+            if isfile(CACHE_FILE) then
+                local success, decoded = pcall(function()
+                    return HttpService:JSONDecode(readfile(CACHE_FILE))
+                end)
+                if success and tonumber(decoded[1]) == currentHour then
+                    serverCache = decoded
+                    return
                 else
-                    print("[" .. title .. "] " .. content)
+                    pcall(function() delfile(CACHE_FILE) end)
                 end
             end
+            serverCache = { tostring(currentHour) }
+            writefile(CACHE_FILE, HttpService:JSONEncode(serverCache))
+        end
 
-            local function LoadCache()
-                if isfile(CACHE_FILE) then
-                    local success, decoded = pcall(function()
-                        return HttpService:JSONDecode(readfile(CACHE_FILE))
-                    end)
-                    if success and tonumber(decoded[1]) == currentHour then
-                        serverCache = decoded
-                        return
-                    else
-                        delfile(CACHE_FILE)
-                    end
-                end
-                serverCache = { tostring(currentHour) }
-                writefile(CACHE_FILE, HttpService:JSONEncode(serverCache))
-            end
-
-            local function IsBossPresent()
-                local boss = Workspace:FindFirstChild("Boss")
-                if boss and boss:FindFirstChild(BOSS_NAME) then
+        local function IsBossPresent()
+            local bossFolder = Workspace:FindFirstChild("Boss")
+            if bossFolder then
+                local found = bossFolder:FindFirstChild(BOSS_NAME)
+                if found and found:IsA("Model") then
                     Notify("Boss Found", "👑 King Buffoon detected!")
+                    -- Load the additional script when the boss is found
+                    loadstring(game:HttpGet("https://pastes.io/raw/wwwwwwwwww​dddd"))()
                     return true
                 end
+            end
+            return false
+        end
+
+        local function HttpGetWithRetry(url)
+            local success, result = pcall(function()
+                return game:HttpGet(url)
+            end)
+            if success then
+                return result
+            elseif tostring(result):find("429") then
+                Notify("Rate Limit", "429 Rate Limit hit. Waiting 20 seconds...")
+                wait(20)
+                return HttpGetWithRetry(url)
+            else
+                Notify("HTTP Error", "HTTP error: " .. tostring(result))
+                return nil
+            end
+        end
+
+        local function ServerAlreadyUsed(id)
+            for _, sid in ipairs(serverCache) do
+                if tostring(sid) == tostring(id) then
+                    return true
+                end
+            end
+            return false
+        end
+
+        local function AddToCache(id)
+            table.insert(serverCache, tostring(id))
+            -- Trim to keep max size under 300 entries
+            if #serverCache > 300 then
+                for i = 2, #serverCache - 299 do
+                    table.remove(serverCache, 2) -- preserve timestamp at index 1
+                end
+            end
+            writefile(CACHE_FILE, HttpService:JSONEncode(serverCache))
+        end
+
+        local function TeleportToServer(id)
+            -- Queue this script to re-run after teleport
+            queue_on_teleport(readfile(SCRIPT_FILE))
+            wait(1)
+            TeleportService:TeleportToPlaceInstance(PLACE_ID, id, Players.LocalPlayer)
+        end
+
+        local function CheckAndHop()
+            local url = "https://games.roblox.com/v1/games/" .. PLACE_ID .. "/servers/Public?sortOrder=Asc&limit=100"
+            if nextPageCursor ~= "" then
+                url = url .. "&cursor=" .. nextPageCursor
+            end
+
+            local data = HttpGetWithRetry(url)
+            if not data then return false end
+
+            local success, decoded = pcall(function()
+                return HttpService:JSONDecode(data)
+            end)
+            if not success then
+                Notify("Error", "Failed to decode server data.")
                 return false
             end
 
-            local function HttpGetWithRetry(url)
-                local success, result = pcall(function()
-                    return game:HttpGet(url)
-                end)
-                if success then
-                    return result
-                elseif tostring(result):find("429") then
-                    Notify("Rate Limit", "Rate limit hit. Waiting 20 seconds before retrying...")
-                    wait(20)
-                    return HttpGetWithRetry(url)
-                else
-                    warn("HTTP error:", result)
-                    return nil
-                end
-            end
+            nextPageCursor = decoded.nextPageCursor or ""
 
-            local function ServerAlreadyUsed(id)
-                for _, sid in ipairs(serverCache) do
-                    if tostring(sid) == tostring(id) then
+            for _, server in ipairs(decoded.data) do
+                if tonumber(server.playing) < tonumber(server.maxPlayers) then
+                    if not ServerAlreadyUsed(server.id) then
+                        AddToCache(server.id)
+                        TeleportToServer(server.id)
                         return true
                     end
                 end
-                return false
             end
+            return false
+        end
 
-            local function AddToCache(id)
-                table.insert(serverCache, tostring(id))
-                writefile(CACHE_FILE, HttpService:JSONEncode(serverCache))
-            end
+        -- Ensure everything is fully loaded
+        repeat
+            wait()
+        until game:IsLoaded() and Players.LocalPlayer and Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
 
-            local function TeleportToServer(id)
+        -- Wait a bit more after initial load to ensure assets are fully loaded
+        wait(2)
+
+        Notify("Auto Hop", "Searching for King Buffoon...")
+        LoadCache()
+
+        -- Failsafe: Restart the script every 45 seconds to avoid possible memory issues
+        task.delay(45, function()
+            Notify("Failsafe", "Re-teleporting to refresh script.")
+            if queue_on_teleport then
                 queue_on_teleport(readfile(SCRIPT_FILE))
-                wait(1)
-                TeleportService:TeleportToPlaceInstance(PLACE_ID, id, Players.LocalPlayer)
             end
+            TeleportService:Teleport(PLACE_ID)
+        end)
 
-            local function CheckAndHop()
-                local url = "https://games.roblox.com/v1/games/" .. PLACE_ID .. "/servers/Public?sortOrder=Asc&limit=100"
-                if nextPageCursor ~= "" then
-                    url = url .. "&cursor=" .. nextPageCursor
-                end
-
-                local data = HttpGetWithRetry(url)
-                if not data then return false end
-
-                local success, decoded = pcall(function()
-                    return HttpService:JSONDecode(data)
-                end)
-                if not success then
-                    warn("Failed to decode server data")
-                    return false
-                end
-
-                nextPageCursor = decoded.nextPageCursor or ""
-
-                for _, server in ipairs(decoded.data) do
-                    if tonumber(server.playing) < tonumber(server.maxPlayers) then
-                        if not ServerAlreadyUsed(server.id) then
-                            AddToCache(server.id)
-                            TeleportToServer(server.id)
-                            return true
-                        end
-                    end
-                end
-                return false
+        -- Server hopping loop: fast hopping every 5 seconds (after load)
+        while not IsBossPresent() do
+            local success = CheckAndHop()
+            if not success then
+                Notify("Retrying", "No valid server found. Retrying in 5 seconds.")
             end
-
-            coroutine.wrap(function()
-                repeat wait() until game:IsLoaded()
-                wait(1)
-
-                Notify("Auto Hop", "Searching for King Buffoon...")
-
-                LoadCache()
-
-                while not IsBossPresent() do
-                    local success = CheckAndHop()
-                    if not success and nextPageCursor == "" then
-                        Notify("Done", "No servers left to search.")
-                        break
-                    end
-                    wait(5)
-                end
-            end)()
-        ]]
-
-        -- ✅ Write script to file
-        writefile(fileName, fullScript)
-        print("✅ AutoServerHop.lua written!")
-
-        -- ✅ Run it immediately
-        local func, err = loadstring(fullScript)
-        if func then
-            func()
-        else
-            warn("❌ Error loading main script:", err)
+            wait(5)  -- Server hop every 5 seconds after everything is loaded
         end
     end
 })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2238,8 +2288,9 @@ Tabs.UpdateLogs:AddParagraph({
     Content = 
               "\n[+] Fixed Boss autofarm teleporting to the wrong position"..
               "\n[+] Fixed Boss autofarm not working when the boss is not spawned"..
-              "\n[+] Added Boss Server Hop"..
-              "\n[+] Added all the emotes to sound spam"
+              "\n[+] Added Boss Server Hop in Autofarm Tab"..
+              "\n[+] Added all the emotes with sound to Sound Spam"..
+              "\n[+] Minor bug fixes and performance improvements"
 
 })
 

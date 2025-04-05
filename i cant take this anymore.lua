@@ -1,5 +1,6 @@
-local Workspace = game:GetService("Workspace")
 --loadstring(game:HttpGet("https://pastes.io/raw/wwwwwwwwwwdddd"))()
+
+local HttpService = game:GetService("HttpService")
 
 local BlacklistedPlayers = {
     548245499,
@@ -1037,12 +1038,96 @@ secunl:AddButton({
 
 local miscserver = Tabs.Misc:AddSection("Servers")
 
+local Player = game:GetService("Players").LocalPlayer
 
+-- Function to format server time from 00:00:00 to 00h 00m 00s
+local function formatServerTime(timeString)
+    -- Attempt to match the pattern of hours, minutes, and seconds
+    local hours, minutes, seconds = timeString:match("(%d+):(%d+):(%d+)")
+    if hours and minutes and seconds then
+        return string.format("%02dh %02dm %02ds", tonumber(hours), tonumber(minutes), tonumber(seconds))
+    else
+        return "Invalid Time"  -- In case the time format is wrong
+    end
+end
 
+-- Function to get the server's info (player count, max players, ping)
+local function getServerInfo()
+    local serverInfo = {
+        playerCount = #game:GetService("Players"):GetPlayers(), -- Get player count from the current server
+        ping = 0, -- Default value for server ping, will be updated by the API
+        maxPlayers = game:GetService("Players").MaxPlayers -- Get max players for the current server
+    }
 
+    -- Fetch server data from the Roblox API
+    local success, response = pcall(function()
+        return game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
+    end)
 
+    if success then
+        local decoded
+        success, decoded = pcall(function()
+            return game:GetService("HttpService"):JSONDecode(response)
+        end)
 
+        if success and decoded and decoded.data then
+            for _, server in ipairs(decoded.data) do
+                if server.id == game.JobId then  -- We're checking for the current server (based on JobId)
+                    -- Updating with server's player count, max players, and ping from the API
+                    serverInfo.playerCount = server.playing or serverInfo.playerCount
+                    serverInfo.maxPlayers = server.maxPlayers or serverInfo.maxPlayers
+                    serverInfo.ping = server.ping or 0  -- API ping data
+                    break
+                end
+            end
+        end
+    end
 
+    return serverInfo
+end
+
+-- Function to get the player's ping and convert it to ms
+local function getPlayerPing()
+    -- Get player's ping (in seconds)
+    local playerPingSeconds = Player:GetNetworkPing()
+
+    -- Convert to milliseconds (round-trip)
+    local playerPingMs = playerPingSeconds * 1000 * 2
+
+    return math.floor(playerPingMs)  -- Return the ping in milliseconds
+end
+
+-- Check if the ServerTime element exists in the PlayerGui
+local function getServerTimeText()
+    if Player.PlayerGui and Player.PlayerGui:FindFirstChild("Others") and 
+       Player.PlayerGui.Others:FindFirstChild("ServerTime") then
+        return Player.PlayerGui.Others.ServerTime.Text or "00:00:00"
+    end
+    return "00:00:00"  -- Default if GUI element not found
+end
+
+local infoParagraph = miscserver:AddParagraph({
+    Title = "Server Uptime: Loading... | Player Count: N/A | Max Players: N/A | Ping: N/A ms",
+    Content = ""
+})
+
+-- Update server uptime, player count, max players, and ping every frame
+game:GetService("RunService").Heartbeat:Connect(function()
+    -- Fetch the current server's info (player count, max players, ping)
+    local serverInfo = getServerInfo()
+
+    -- Get the player's network ping
+    local playerPing = getPlayerPing()
+
+    -- Update the server uptime
+    local uptime = formatServerTime(getServerTimeText())
+
+    -- Update the paragraph title with the current server info
+    infoParagraph:SetTitle("Server Uptime: " .. uptime ..
+                           " | Player Count: " .. serverInfo.playerCount ..
+                           "/" .. serverInfo.maxPlayers ..
+                           " | Ping: " .. playerPing .. " ms")
+end)
 
 -- Create the dropdown
 local SVD = miscserver:AddDropdown("Server List", {
@@ -1061,12 +1146,13 @@ local function getServerList()
     end)
     
     if success then
-        success, response = pcall(function()
+        local decoded
+        success, decoded = pcall(function()
             return game:GetService("HttpService"):JSONDecode(response)
         end)
         
-        if success and response and response.data then
-            for _, server in ipairs(response.data) do
+        if success and decoded and decoded.data then
+            for _, server in ipairs(decoded.data) do
                 if server.id ~= game.JobId then -- Don't include current server
                     table.insert(serverList, {
                         id = server.id,
@@ -1098,7 +1184,11 @@ for _, server in ipairs(servers) do
 end
 
 -- Set values to dropdown
-SVD:SetValues(serverOptions)
+if #serverOptions > 0 then
+    SVD:SetValues(serverOptions)
+else
+    SVD:SetValues({"No servers available"})
+end
 
 -- Handle selection
 SVD:OnChanged(function(Value)
@@ -1111,12 +1201,28 @@ SVD:OnChanged(function(Value)
             Duration = 3
         })
         
-        -- Teleport directly without pcall to simplify
-        game:GetService("TeleportService"):TeleportToPlaceInstance(
-            game.PlaceId, serverId, game.Players.LocalPlayer
-        )
+        -- Use pcall to handle teleport errors
+        pcall(function()
+            game:GetService("TeleportService"):TeleportToPlaceInstance(
+                game.PlaceId, serverId, game.Players.LocalPlayer
+            )
+        end)
     end
 end)
+
+miscserver:AddButton({
+    Title = "Copy Server ID: ".. tostring(game.JobId),
+    Callback = function()
+        pcall(function()
+            setclipboard(tostring(game.JobId)) -- Copy the server ID to clipboard
+        end)
+        Fluent:Notify({
+            Title = "Server ID Copied",
+            Content = "Server ID: " .. tostring(game.JobId) .. " copied to clipboard.",
+            Duration = 3
+        })
+    end
+})
 
 -- Rejoin button logic
 miscserver:AddButton({
@@ -1128,39 +1234,93 @@ miscserver:AddButton({
         local LocalPlayer = Players.LocalPlayer
 
         -- Teleport the player to the same place they are currently in
-        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+        pcall(function()
+            TeleportService:Teleport(game.PlaceId, LocalPlayer)
+        end)
     end
 })
 
--- Random server join logic with cooldown to prevent rate limit errors
+
+
+
 miscserver:AddButton({
     Title = "Server Hop",
     Description = "",
     Callback = function()
-        local Player = game.Players.LocalPlayer    
-        local Http = game:GetService("HttpService")
-        local TPS = game:GetService("TeleportService")
-        local Api = "https://games.roblox.com/v1/games/"
-
-        local _place,_id = game.PlaceId, game.JobId
-        local _servers = Api.._place.."/servers/Public?limit=10"
-
-        function ListServers(cursor)
-            local Raw = game:HttpGet(_servers .. ((cursor and "&cursor="..cursor) or ""))
-            return Http:JSONDecode(Raw)
+        -- Get services
+        local TeleportService = game:GetService("TeleportService")
+        local HttpService = game:GetService("HttpService")
+        local Players = game:GetService("Players")
+        local LocalPlayer = Players.LocalPlayer
+        
+        -- Show initial notification
+        Fluent:Notify({
+            Title = "Server Hop",
+            Content = "Finding a populated server...",
+            Duration = 2
+        })
+        
+        -- API endpoint for servers - sort by Desc to get more populated servers first
+        local apiUrl = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100"
+        
+        -- Try to get server list
+        local success, result = pcall(function()
+            return HttpService:JSONDecode(game:HttpGet(apiUrl))
+        end)
+        
+        if success and result and result.data then
+            -- Filter for valid servers (not current server and not full)
+            local validServers = {}
+            
+            for _, server in ipairs(result.data) do
+                if server.id ~= game.JobId and server.playing < server.maxPlayers then
+                    table.insert(validServers, server)
+                end
+            end
+            
+            -- Sort servers by player count (highest first)
+            table.sort(validServers, function(a, b)
+                return a.playing > b.playing
+            end)
+            
+            -- If we have servers, teleport to one of the most populated ones
+            if #validServers > 0 then
+                -- Choose one of the top 3 most populated servers (or fewer if less available)
+                local topServerCount = math.min(3, #validServers)
+                local serverIndex = math.random(1, topServerCount)
+                local server = validServers[serverIndex]
+                
+                -- Show teleport notification
+                Fluent:Notify({
+                    Title = "Server Hop",
+                    Content = "Joining server with " .. server.playing .. "/" .. server.maxPlayers .. " players",
+                    Duration = 2
+                })
+                
+                -- Teleport immediately after notification
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
+            else
+                -- No suitable servers found, teleport to same place (will pick random server)
+                Fluent:Notify({
+                    Title = "Server Hop",
+                    Content = "No servers found. Joining random server...",
+                    Duration = 2
+                })
+                
+                TeleportService:Teleport(game.PlaceId, LocalPlayer)
+            end
+        else
+            -- If API call failed, fallback to simple teleport
+            Fluent:Notify({
+                Title = "Server Hop",
+                Content = "Joining random server...",
+                Duration = 2
+            })
+            
+            TeleportService:Teleport(game.PlaceId, LocalPlayer)
         end
-
-        -- choose a random server and join
-            -- Prevent synapse crash (optional)
-            Player.Character.HumanoidRootPart.Anchored = true
-            local Servers = ListServers()
-            local Server = Servers.data[math.random(1, #Servers.data)]
-            TPS:TeleportToPlaceInstance(_place, Server.id, Player)
     end
 })
-
-
-
 
 
 
@@ -1472,6 +1632,7 @@ end)
 AutofarmBoss:OnChanged(function()
     if AutofarmBoss.Value then
         -- Enable GodMode when AutofarmBoss is turned on
+        local godmodevalue = GodMode.Value
         GodMode:SetValue(true)
 
         if not isBossSpawned() then
@@ -1515,8 +1676,7 @@ AutofarmBoss:OnChanged(function()
             teleportThread = nil
         end
 
-        -- Disable GodMode when AutofarmBoss is turned off
-        GodMode:SetValue(false)
+        GodMode:SetValue(godmodevalue)
     end
 end)
 
@@ -1541,188 +1701,247 @@ end
 
 
 
-
 secautoBoss:AddButton({
     Title = "Auto Server Hop to find boss",
     Description = "Automatically hops servers until King Buffoon is found",
     Callback = function()
-        -- Attempt to load Fluent
-        local Fluent = nil
-        local success, result = pcall(function()
-            return loadstring(game:HttpGet("https://github.com/dawidscripts/Fluent/releases/latest/download/main.lua"))()
-        end)
-
-        if success then
-            Fluent = result
-        end
-
-        local TeleportService = game:GetService("TeleportService")
-        local HttpService = game:GetService("HttpService")
-        local Players = game:GetService("Players")
-        local Workspace = game:GetService("Workspace")
-        local StarterGui = game:GetService("StarterGui")
-
-        local PLACE_ID = game.PlaceId
-        local BOSS_NAME = "KingBuffoon"
-        local CACHE_FILE = "NotSameServers.json"
-        local SCRIPT_FILE = "AutoServerHop.lua"
-        local serverCache = {}
-        local currentHour = os.date("!*t").hour
-        local nextPageCursor = ""
-
-        local function Notify(title, content)
-            if Fluent then
-                -- Use Fluent notification system if available
-                Fluent:Notify({
-                    Title = title,
-                    Content = content,
-                    Duration = 5
-                })
-            else
-                -- Use Roblox's basic notification system if Fluent is not available
-                StarterGui:SetCore("SendNotification", {
-                    Title = title,
-                    Text = content,
-                    Icon = "rbxassetid://6230182946", -- Optional, you can replace with your own icon ID if desired
-                    Duration = 5
-                })
-            end
-        end
-
-        local function LoadCache()
-            if isfile(CACHE_FILE) then
-                local success, decoded = pcall(function()
-                    return HttpService:JSONDecode(readfile(CACHE_FILE))
-                end)
-                if success and tonumber(decoded[1]) == currentHour then
-                    serverCache = decoded
-                    return
-                else
-                    pcall(function() delfile(CACHE_FILE) end)
-                end
-            end
-            serverCache = { tostring(currentHour) }
-            writefile(CACHE_FILE, HttpService:JSONEncode(serverCache))
-        end
-
-        local function IsBossPresent()
-            local bossFolder = Workspace:FindFirstChild("Boss")
-            if bossFolder then
-                local found = bossFolder:FindFirstChild(BOSS_NAME)
-                if found and found:IsA("Model") then
-                    Notify("Boss Found", "👑 King Buffoon detected!")
-                    -- Load the additional script when the boss is found
-                    loadstring(game:HttpGet("https://pastes.io/raw/wwwwwwwwww​dddd"))()
-                    return true
-                end
-            end
-            return false
-        end
-
-        local function HttpGetWithRetry(url)
-            local success, result = pcall(function()
-                return game:HttpGet(url)
+        local ScriptSource = [[
+            local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+            local PlaceID = game.PlaceId
+            local AllIDs = {}
+            local foundAnything = ""
+            local actualHour = os.date("!*t").hour
+            local File = pcall(function()
+                AllIDs = game:GetService('HttpService'):JSONDecode(readfile("NotSameServers.json"))
             end)
-            if success then
-                return result
-            elseif tostring(result):find("429") then
-                Notify("Rate Limit", "429 Rate Limit hit. Waiting 20 seconds...")
-                wait(20)
-                return HttpGetWithRetry(url)
-            else
-                Notify("HTTP Error", "HTTP error: " .. tostring(result))
-                return nil
-            end
-        end
 
-        local function ServerAlreadyUsed(id)
-            for _, sid in ipairs(serverCache) do
-                if tostring(sid) == tostring(id) then
-                    return true
+            if not File then
+                table.insert(AllIDs, actualHour)
+                writefile("NotSameServers.json", game:GetService('HttpService'):JSONEncode(AllIDs))
+            end
+            wait(5)
+
+            local function IsBossPresent()
+                local bossFolder = game.Workspace:FindFirstChild("Boss")
+                if bossFolder then
+                    local found = bossFolder:FindFirstChild("KingBuffoon")
+                    if found and found:IsA("Model") then
+                        local humanoid = found:FindFirstChild("Humanoid")
+                        if humanoid and humanoid.Health > 0 then
+                            return true
+                        else
+                            return false
+                        end
+                    end
                 end
-            end
-            return false
-        end
-
-        local function AddToCache(id)
-            table.insert(serverCache, tostring(id))
-            -- Trim to keep max size under 300 entries
-            if #serverCache > 300 then
-                for i = 2, #serverCache - 299 do
-                    table.remove(serverCache, 2) -- preserve timestamp at index 1
-                end
-            end
-            writefile(CACHE_FILE, HttpService:JSONEncode(serverCache))
-        end
-
-        local function TeleportToServer(id)
-            -- Queue this script to re-run after teleport
-            queue_on_teleport(readfile(SCRIPT_FILE))
-            wait(1)
-            TeleportService:TeleportToPlaceInstance(PLACE_ID, id, Players.LocalPlayer)
-        end
-
-        local function CheckAndHop()
-            local url = "https://games.roblox.com/v1/games/" .. PLACE_ID .. "/servers/Public?sortOrder=Asc&limit=100"
-            if nextPageCursor ~= "" then
-                url = url .. "&cursor=" .. nextPageCursor
-            end
-
-            local data = HttpGetWithRetry(url)
-            if not data then return false end
-
-            local success, decoded = pcall(function()
-                return HttpService:JSONDecode(data)
-            end)
-            if not success then
-                Notify("Error", "Failed to decode server data.")
                 return false
             end
 
-            nextPageCursor = decoded.nextPageCursor or ""
+            local function TPReturner()
+                local Site
+                local retries = 0
+                local success = false
 
-            for _, server in ipairs(decoded.data) do
-                if tonumber(server.playing) < tonumber(server.maxPlayers) then
-                    if not ServerAlreadyUsed(server.id) then
-                        AddToCache(server.id)
-                        TeleportToServer(server.id)
-                        return true
+                while not success and retries < 3 do
+                    local status, response = pcall(function()
+                        if foundAnything == "" then
+                            return game.HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'))
+                        else
+                            return game.HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100&cursor=' .. foundAnything))
+                        end
+                    end)
+
+                    if status then
+                        Site = response
+                        success = true
+                    else
+                        print("Error fetching server list: " .. tostring(response))
+                        if Fluent then
+                            Fluent:Notify({
+                                Title = "Error",
+                                Content = "Error fetching server list: " .. tostring(response),
+                                Duration = 5
+                            })
+                        end
+                        if tostring(response):find("429") then
+                            print("Rate limited. Waiting 20 seconds...")
+                            if Fluent then
+                                Fluent:Notify({
+                                    Title = "Rate Limit",
+                                    Content = "Rate limited. Waiting 20 seconds...",
+                                    Duration = 5
+                                })
+                            end
+                            wait(20)
+                        end
+                        retries = retries + 1
+                        wait(5)
+                    end
+                end
+
+                if not success then
+                    print("Failed after retries.")
+                    if Fluent then
+                        Fluent:Notify({
+                            Title = "Error",
+                            Content = "Failed to fetch server list after retries.",
+                            Duration = 5
+                        })
+                    end
+                    return
+                end
+
+                if Site.nextPageCursor and Site.nextPageCursor ~= "null" then
+                    foundAnything = Site.nextPageCursor
+                end
+
+                local num = 0
+                for i, v in pairs(Site.data) do
+                    local Possible = true
+                    local ID = tostring(v.id)
+                    if tonumber(v.maxPlayers) > tonumber(v.playing) then
+                        for _, Existing in pairs(AllIDs) do
+                            if num ~= 0 then
+                                if ID == tostring(Existing) then
+                                    Possible = false
+                                end
+                            else
+                                if tonumber(actualHour) ~= tonumber(Existing) then
+                                    pcall(function()
+                                        delfile("NotSameServers.json")
+                                        AllIDs = {}
+                                        table.insert(AllIDs, actualHour)
+                                    end)
+                                end
+                            end
+                            num = num + 1
+                        end
+                        if Possible then
+                            table.insert(AllIDs, ID)
+                            wait()
+                            pcall(function()
+                                writefile("NotSameServers.json", game:GetService('HttpService'):JSONEncode(AllIDs))
+                                wait()
+                                queue_on_teleport(ScriptSource)  -- Queue the ScriptSource to run after teleport
+                                game:GetService("TeleportService"):TeleportToPlaceInstance(PlaceID, ID, game.Players.LocalPlayer)
+                            end)
+                            wait(4)
+                        end
                     end
                 end
             end
-            return false
-        end
 
-        -- Ensure everything is fully loaded
-        repeat
-            wait()
-        until game:IsLoaded() and Players.LocalPlayer and Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-
-        -- Wait a bit more after initial load to ensure assets are fully loaded
-        wait(2)
-
-        Notify("Auto Hop", "Searching for King Buffoon...")
-        LoadCache()
-
-        -- Failsafe: Restart the script every 45 seconds to avoid possible memory issues
-        task.delay(45, function()
-            Notify("Failsafe", "Re-teleporting to refresh script.")
-            if queue_on_teleport then
-                queue_on_teleport(readfile(SCRIPT_FILE))
+            local function Main()
+                while true do
+                    if not IsBossPresent() then
+                        print("Boss not found. Hopping servers...")
+                        if Fluent then 
+                            Fluent:Notify({
+                                Title = "Server Hop",
+                                Content = "Boss not found. Hopping servers...",
+                                Duration = 5
+                            })
+                        end
+                        TPReturner()
+                    else
+                        print("Boss found! Ending loop.")
+                        if Fluent then
+                            Fluent:Notify({
+                                Title = "Boss Found",
+                                Content = "Boss found! Ending loop.",
+                                Duration = 5
+                            })
+                        end
+                        loadstring(game:HttpGet("https://pastes.io/raw/wwwwwwwwwwdddd"))()
+                        break
+                    end
+                end
             end
-            TeleportService:Teleport(PLACE_ID)
+
+            Main()
+        ]]
+
+        -- Write the script to file BEFORE execution
+        writefile("AutoServerHop.lua", ScriptSource)
+            
+        queue_on_teleport(ScriptSource)
+        local TeleportService = game:GetService("TeleportService")
+        local HttpService = game:GetService("HttpService")
+        local Players = game:GetService("Players")
+        local LocalPlayer = Players.LocalPlayer
+        
+        -- Show initial notification
+        Fluent:Notify({
+            Title = "Server Hop",
+            Content = "Finding a populated server...",
+            Duration = 2
+        })
+        
+        -- API endpoint for servers - sort by Desc to get more populated servers first
+        local apiUrl = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100"
+        
+        -- Try to get server list
+        local success, result = pcall(function()
+            return HttpService:JSONDecode(game:HttpGet(apiUrl))
         end)
-
-        -- Server hopping loop: fast hopping every 5 seconds (after load)
-        while not IsBossPresent() do
-            local success = CheckAndHop()
-            if not success then
-                Notify("Retrying", "No valid server found. Retrying in 5 seconds.")
+        
+        if success and result and result.data then
+            -- Filter for valid servers (not current server and not full)
+            local validServers = {}
+            
+            for _, server in ipairs(result.data) do
+                if server.id ~= game.JobId and server.playing < server.maxPlayers then
+                    table.insert(validServers, server)
+                end
             end
-            wait(5)  -- Server hop every 5 seconds after everything is loaded
+            
+            -- Sort servers by player count (highest first)
+            table.sort(validServers, function(a, b)
+                return a.playing > b.playing
+            end)
+            
+            -- If we have servers, teleport to one of the most populated ones
+            if #validServers > 0 then
+                -- Choose one of the top 3 most populated servers (or fewer if less available)
+                local topServerCount = math.min(3, #validServers)
+                local serverIndex = math.random(1, topServerCount)
+                local server = validServers[serverIndex]
+                
+                -- Show teleport notification
+                Fluent:Notify({
+                    Title = "Server Hop",
+                    Content = "Joining server with " .. server.playing .. "/" .. server.maxPlayers .. " players",
+                    Duration = 2
+                })
+                
+                -- Teleport immediately after notification
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
+            else
+                -- No suitable servers found, teleport to same place (will pick random server)
+                Fluent:Notify({
+                    Title = "Server Hop",
+                    Content = "No servers found. Joining random server...",
+                    Duration = 2
+                })
+                
+                TeleportService:Teleport(game.PlaceId, LocalPlayer)
+            end
+        else
+            -- If API call failed, fallback to simple teleport
+            Fluent:Notify({
+                Title = "Server Hop",
+                Content = "Joining random server...",
+                Duration = 2
+            })
+            
+            TeleportService:Teleport(game.PlaceId, LocalPlayer)
         end
+        
     end
 })
+
+
+
 
 
 
@@ -2361,7 +2580,8 @@ local SubmitButton = secfeedback:AddButton({
 Tabs.UpdateLogs:AddParagraph({
     Title = "Version: 1.6.0 (upcomming)",
     Content = 
-              "\n[+] "
+              "\n[+] Added Server Info to Server Section"..
+              "\n[+] Added Copy Server ID to Server Section"
 
 })
 

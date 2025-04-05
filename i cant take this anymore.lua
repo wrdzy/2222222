@@ -233,15 +233,6 @@ local Options = Fluent.Options
     
             -- If tool is missing, show notification and wait
             if not tool then
-                if not notificationShown then
-                    Fluent:Notify({
-                        Title = "Swing Speed",
-                        Content = "Tool not found. Waiting...",
-                        Duration = 5
-                    })
-                    notificationShown = true
-                end
-    
                 -- Wait until tool is found
                 repeat
                     task.wait(0.5)
@@ -546,15 +537,6 @@ local function fireHitEvent()
 
         local weapon = character:FindFirstChildOfClass("Tool")
         if not weapon then
-            if not notificationShown then
-                Fluent:Notify({
-                    Title = "Kill Aura",
-                    Content = "Tool not found. Waiting...",
-                    Duration = 5
-                })
-                notificationShown = true
-            end
-
             -- Wait until tool is found or Killaura is toggled off
             repeat
                 task.wait(0.5)

@@ -129,7 +129,6 @@ local Options = Fluent.Options
         end
     })
     
-    SliderWalk:SetValue(30)
     
     -- JumpPower Slider
     local SliderJump = secplayer:AddSlider("SliderJump", {
@@ -144,8 +143,6 @@ local Options = Fluent.Options
             humanoid.JumpPower = Value
         end
     })
-    
-    SliderJump:SetValue(50)
     
     -- Ensure WalkSpeed stays set
     humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
@@ -174,6 +171,121 @@ local Options = Fluent.Options
         humanoid.UseJumpPower = true
         humanoid.JumpPower = SliderJump.Value
     end)
+
+
+
+
+
+
+
+
+
+
+
+    local player = game.Players.LocalPlayer
+    local tool = nil
+    local notificationShown = false
+    
+    -- Slider for swing speed
+    local SwingSpeed = secplayer:AddSlider("Swing Speed", {
+        Title = "Swing Speed",
+        Description = "",
+        Default = 1.5,
+        Min = 1.5,
+        Max = 4.5,
+        Rounding = 1,
+        Callback = function(Value)
+            if tool and tool:FindFirstChild("Speeds") and tool.Speeds:FindFirstChild("Swingspeed") then
+                tool.Speeds.Swingspeed.Value = Value
+            end
+        end
+    })
+    
+    -- Function to safely wait for Speeds.Swingspeed and set the value
+    local function updateToolSwingSpeed()
+        if not tool then return end
+    
+        -- Wait for 'Speeds' folder
+        local speeds = tool:FindFirstChild("Speeds") or tool:WaitForChild("Speeds", 2)
+        if not speeds then return end
+    
+        -- Wait for 'Swingspeed' value
+        local swingspeed = speeds:FindFirstChild("Swingspeed") or speeds:WaitForChild("Swingspeed", 2)
+        if not swingspeed then return end
+    
+        -- Set the value
+        swingspeed.Value = SwingSpeed.Value
+    end
+    
+    -- Start a loop to wait for the tool and apply the swing speed
+    task.spawn(function()
+        while true do
+            local character = player.Character
+            local humanoid = character and character:FindFirstChild("Humanoid")
+    
+            -- Wait until character exists and is alive
+            if not character or not humanoid or humanoid.Health <= 0 then
+                task.wait(1)
+                continue
+            end
+    
+            tool = character:FindFirstChildOfClass("Tool")
+    
+            -- If tool is missing, show notification and wait
+            if not tool then
+                if not notificationShown then
+                    Fluent:Notify({
+                        Title = "Swing Speed",
+                        Content = "Tool not found. Waiting...",
+                        Duration = 5
+                    })
+                    notificationShown = true
+                end
+    
+                -- Wait until tool is found
+                repeat
+                    task.wait(0.5)
+                    character = player.Character
+                    tool = character and character:FindFirstChildOfClass("Tool")
+                until tool
+    
+                notificationShown = false
+            end
+    
+            -- Wait for Speeds and Swingspeed to be replicated and set the value
+            updateToolSwingSpeed()
+    
+            -- Monitor tool removal
+            tool.AncestryChanged:Connect(function(_, parent)
+                if not parent then
+                    tool = nil
+                end
+            end)
+    
+            -- Idle wait until tool is removed
+            repeat task.wait(1) until not tool
+        end
+    end)
+    
+    -- Also update on slider change
+    SwingSpeed:OnChanged(function()
+        updateToolSwingSpeed()
+    end)
+    
+
+    
+    
+    
+
+    
+
+    
+
+
+
+
+    
+    
 
 
     -- Tabs.Autofarm:AddParagraph({
@@ -313,79 +425,80 @@ local Options = Fluent.Options
 
 
 
+    local GodMode = secplayer:AddToggle("GodMode", {Title = "God Mode", Default = false})
     local player = game.Players.LocalPlayer
-local GodMode = secplayer:AddToggle("GodMode", {Title = "God Mode", Default = false })
-local eventsDeletedGod = false  -- Variable to track if the events were already deleted
-local humanoid = nil
-local character = nil
-local characterEvents = nil
-
--- Function to handle player death
-local function handlePlayerDeath()
-    -- If God Mode is active, delete the events again after respawn
-    if GodMode:Get() then
-        if characterEvents then
-            -- Loop through and remove all events
-            for _, event in ipairs(characterEvents:GetChildren()) do
-                event:Destroy()  -- Destroy each child (event) in the CharacterEvents folder
-            end
-        end
-        eventsDeletedGod = true  -- Mark events as deleted
-    end
-end
-
--- When the character respawns, update the humanoid and event handling
-player.CharacterAdded:Connect(function(newCharacter)
-    character = newCharacter
-    humanoid = character:WaitForChild("Humanoid")
-    characterEvents = character:FindFirstChild("CharacterEvents")
-
-    -- Reset the deletion flag on respawn
-    eventsDeletedGod = false
-
-    -- Connect the Died event to handle player death
-    humanoid.Died:Connect(handlePlayerDeath)
-
-    -- If GodMode is active, delete events after respawn
-    if GodMode:Get() then
-        if characterEvents then
-            for _, event in ipairs(characterEvents:GetChildren()) do
-                event:Destroy()  -- Destroy each child (event) in the CharacterEvents folder
-            end
-        end
-        eventsDeletedGod = true
-    end
-end)
-
--- God Mode toggle logic
-GodMode:OnChanged(function(isToggled)
-    if not player or not player.Character then return end  -- Ensure the player exists
-    local characterEvents = player.Character:FindFirstChild("CharacterEvents")
-    if not characterEvents then return end  -- Ensure CharacterEvents exists
+    local humanoid = nil
+    local character = nil
+    local originalImmuneState = nil  -- Variable to store the original state of the 'Immune' property
     
-    if isToggled then
-        -- Disable damage logic (just removing events as part of GodMode)
-        if characterEvents and not eventsDeletedGod then
-            for _, event in ipairs(characterEvents:GetChildren()) do
-                event:Destroy()  -- Destroy each child (event) in the CharacterEvents folder
+    -- Function to delete the Immune property
+    local function deleteImmuneProperty()
+        if player.Character and player.Character:FindFirstChild("Humanoid") then
+            humanoid = player.Character.Humanoid
+            if humanoid:FindFirstChild("Immune") then
+                originalImmuneState = humanoid.Immune.Value  -- Save the original state before deleting
+                humanoid.Immune:Destroy()  -- Delete the Immune property
             end
-            eventsDeletedGod = true  -- Mark events as deleted
-        end
-    else
-        -- Restore events logic (if GodMode is toggled off)
-        if eventsDeletedGod then
-            -- Add events back if needed (this assumes you know the event names)
-            local events = {"Ability", "ClientRagdollEvent", "Headbutt", "Hit", "Impulse", "Launch", "PhysicsEvent", "RagdollEvent"}
-            for _, eventName in ipairs(events) do
-                local newEvent = Instance.new("RemoteEvent")
-                newEvent.Name = eventName
-                newEvent.Parent = characterEvents
-            end
-            eventsDeletedGod = false  -- Reset the deletion flag
         end
     end
-end)
-
+    
+    -- Function to restore the Immune property
+    local function restoreImmuneProperty()
+        if player.Character and player.Character:FindFirstChild("Humanoid") then
+            humanoid = player.Character.Humanoid
+            if originalImmuneState ~= nil then
+                -- If Immune exists, restore the value to its original state
+                local immune = humanoid:FindFirstChild("Immune")
+                if immune then
+                    immune.Value = originalImmuneState
+                else
+                    -- If Immune doesn't exist, create it and set the value
+                    local immune = Instance.new("BoolValue")
+                    immune.Name = "Immune"
+                    immune.Value = originalImmuneState
+                    immune.Parent = humanoid
+                end
+            end
+        end
+    end
+    
+    -- When the character respawns, update the humanoid and handle immunity
+    player.CharacterAdded:Connect(function(newCharacter)
+        character = newCharacter
+        humanoid = character:WaitForChild("Humanoid")
+    
+        -- If GodMode is active, delete the Immune property
+        if GodMode.Value then  -- Use Value instead of Get()
+            deleteImmuneProperty()
+        else
+            -- If GodMode is turned off, restore the Immune property to its original state
+            restoreImmuneProperty()
+        end
+    end)
+    
+    -- God Mode toggle logic
+    GodMode:OnChanged(function()
+        if not player or not player.Character then return end  -- Ensure the player exists
+        humanoid = player.Character:FindFirstChild("Humanoid")
+    
+        -- If GodMode is active, delete the Immune property to make the player invulnerable
+        if GodMode.Value then  -- Use Value instead of Get()
+            if humanoid and humanoid:FindFirstChild("Immune") then
+                deleteImmuneProperty()
+            end
+        else
+            -- If GodMode is turned off, restore the Immune property to its original state
+            if humanoid then
+                restoreImmuneProperty()
+            end
+        end
+    end)
+    
+    
+    
+    
+    
+    
     
       
     
@@ -705,13 +818,6 @@ local function populateSoundEmotes()
     local emotesContainer = repStorage:FindFirstChild("Emotes")
     local newEmotesContainer = repStorage:FindFirstChild("Emotes.New") -- Look for Emotes.New folder as well
     
-    -- Check if Emotes and Emotes.New exist
-    if not emotesContainer then
-        print("Emotes folder not found.")
-    end
-    if not newEmotesContainer then
-        print("Emotes.New folder not found.")
-    end
 
     local soundEmotes = {}
 
@@ -738,8 +844,6 @@ local function populateSoundEmotes()
     -- Update dropdown with found sound emotes
     if #soundEmotes > 0 then
         SoundSpamname:SetValues(soundEmotes)
-    else
-        print("No emotes with sounds found.")
     end
 end
 
@@ -2290,6 +2394,8 @@ Tabs.UpdateLogs:AddParagraph({
               "\n[+] Fixed Boss autofarm not working when the boss is not spawned"..
               "\n[+] Added Boss Server Hop in Autofarm Tab"..
               "\n[+] Added all the emotes with sound to Sound Spam"..
+              "\n[+] Added Swing Speed modifier"..
+              "\n[+] Improved God Mode"..
               "\n[+] Minor bug fixes and performance improvements"
 
 })

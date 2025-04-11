@@ -58,7 +58,7 @@ for _, adminId in ipairs(Admins) do
 end
 
 local Window = Fluent:CreateWindow({
-    Title = "Blades & Buffoonery⚔️ " .. Version,
+    Title = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name.." | "..Version,
     SubTitle = "(auto updt vers.) by wrdyz.94",
     TabWidth = 100,
     Size = UDim2.fromOffset(550, 400),
@@ -90,13 +90,6 @@ end
 
 local Options = Fluent.Options
 
--- do
---     Fluent:Notify({
---         Title = "Notification",
---         Content = "This is a notification",
---         SubContent = "SubContent", -- Optional
---         Duration = 5 -- Set to nil to make the notification not disappear
---     })
 
 
 
@@ -116,15 +109,18 @@ local Options = Fluent.Options
     local player = game.Players.LocalPlayer
     local character = player.Character or player.CharacterAdded:Wait()
     local humanoid = character:WaitForChild("Humanoid")
-    
+    local basespeed = humanoid.WalkSpeed
+    local basejump = humanoid.JumpPower
+
+
     -- WalkSpeed Slider
     local SliderWalk = secplayer:AddSlider("SliderWalk", {
         Title = "Walk Speed",
         Description = "",
-        Default = 30,
-        Min = 30,
-        Max = 150,
-        Rounding = 1,
+        Default = basespeed,
+        Min = basespeed,
+        Max = basespeed * 2,
+        Rounding = 0,
         Callback = function(Value)
             humanoid.WalkSpeed = Value
         end
@@ -135,10 +131,10 @@ local Options = Fluent.Options
     local SliderJump = secplayer:AddSlider("SliderJump", {
         Title = "Jump Power",
         Description = "",
-        Default = 50,
-        Min = 50,
-        Max = 200,
-        Rounding = 1,
+        Default = basejump,
+        Min = basejump,
+        Max = basejump * 2,
+        Rounding = 0,
         Callback = function(Value)
             humanoid.UseJumpPower = true
             humanoid.JumpPower = Value
@@ -487,7 +483,7 @@ local Options = Fluent.Options
     end)
     
     
-    
+    local godmodestate = GodMode.Value
     
     
     
@@ -780,7 +776,6 @@ end)
 
 local secmisc = Tabs.Misc:AddSection("Misc")
 
-local secmisc = secmisc -- Assuming this variable exists in your script
 
 local SoundSpamname = secmisc:AddDropdown("SsN", {
     Title = "Sound Emote",
@@ -940,36 +935,70 @@ end)
 
 
 
-local brickk = secmisc:AddToggle("BrickToggle", {Title = "Anti Kill Brick", Description = "", Default = false})
+local brickk = secmisc:AddToggle("BrickToggle", {Title = "Remove Lava", Description = "", Default = false})
 local brickkyes = false
+
+local removedCanTouch = {}  -- Store the original CanTouch property states
 
 brickk:OnChanged(function()
     if brickk.Value then
-        brickkyes = true -- Remove `local` so it properly updates
-
-        -- Define position and size when toggle is enabled
-        local position = Vector3.new(50, -47, 1000)
-        local size = Vector3.new(10000, 10, 10000) -- Large but not extreme
-
-        -- Create the brick
+        -- Turned ON: Look through models inside workspace.Map
+        for _, model in pairs(workspace.Map:GetChildren()) do
+            if model:IsA("Model") then  -- Ensure it's a model
+                -- Look through the nested models inside the outer model
+                for _, innerModel in pairs(model:GetChildren()) do
+                    if innerModel:IsA("Model") then
+                        -- Look for parts inside the innerModel named "Union" or "Part"
+                        for _, part in pairs(innerModel:GetChildren()) do
+                            if part:IsA("BasePart") and (part.Name == "Union" or part.Name == "Part") then
+                                -- Check if part has a TouchInterest
+                                local touchInterest = part:FindFirstChild("TouchInterest")
+                                if touchInterest then
+                                    -- Store the original CanTouch property value
+                                    table.insert(removedCanTouch, {part, part.CanTouch})
+                                    
+                                    -- Disable the CanTouch property to stop touch interactions
+                                    part.CanTouch = false
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        brickkyes = true
         local brick = Instance.new("Part")
-        brick.Size = size
+        brick.Size = Vector3.new(10000, 10, 10000) -- Large but not extreme
         brick.Anchored = true
         brick.CanCollide = true
         brick.Transparency = 0.5 -- Semi-visible
         brick.BrickColor = BrickColor.new("Dark grey")
         brick.Name = "BigBrick"
         brick.Parent = game.Workspace -- Parent must be set before Position
-        brick.Position = position
+        brick.Position = Vector3.new(50, -95, 1000)
     else
-        -- Remove the brick if toggle is turned off
-        local existingBrick = game.Workspace:FindFirstChild("BigBrick")
-        if existingBrick then
-            existingBrick:Destroy()
+        -- Turned OFF: Restore the CanTouch property to its original value
+        if brickkyes then
+            local existingBrick = game.Workspace:FindFirstChild("BigBrick")
+            if existingBrick then
+                existingBrick:Destroy()
+            end
+            for _, data in ipairs(removedCanTouch) do
+                local part, originalCanTouch = unpack(data)
+                
+                -- Restore the original CanTouch value
+                part.CanTouch = originalCanTouch
+            end
+
+            removedCanTouch = {}  -- Clear the list after restoring
+            brickkyes = false
         end
-        brickkyes = false -- Reset variable when the brick is removed
     end
 end)
+
+
+
+
 
 
 
@@ -1627,12 +1656,12 @@ task.spawn(function()
         end
     end
 end)
+local godmodevalue = GodMode.Value
 
 -- Handle AutofarmBoss toggle
 AutofarmBoss:OnChanged(function()
     if AutofarmBoss.Value then
         -- Enable GodMode when AutofarmBoss is turned on
-        local godmodevalue = GodMode.Value
         GodMode:SetValue(true)
 
         if not isBossSpawned() then
@@ -1985,8 +2014,6 @@ local function GetDistance(position1, position2)
     return (position1 - position2).Magnitude
 end
 
-
-
 -- Declare stepammount globally first with a default value
 local stepammount = 0.005
 
@@ -2010,19 +2037,14 @@ end)
 local TTPM = secauto2:AddToggle("TTPM", {
     Title = "Autofarm boxes ", 
     Description = "Performance may vary based on your FPS.",
-    Default = false})
-
--- Add the missing GetDistance function if it's not defined elsewhere
-local function GetDistance(pos1, pos2)
-    return (pos1 - pos2).Magnitude
-end
+    Default = false
+})
 
 -- 📌 Function to find nearest box
 local function FindNearestBox()
-    -- Get current character's root part
     local character = player.Character
     if not character then return nil end
-    
+
     local rootPart = character:FindFirstChild("HumanoidRootPart")
     if not rootPart then return nil end
 
@@ -2045,7 +2067,7 @@ end
 local function HasWeaponEquipped()
     local character = player.Character
     if not character then return false end
-    
+
     local tool = character:FindFirstChildOfClass("Tool")
     return tool ~= nil
 end
@@ -2053,6 +2075,7 @@ end
 -- Function to handle player death
 local function handlePlayerDeath()
     if TTPM.Value then
+        GodMode:SetValue(godmodestate)
         TTPM:SetValue(false)
         Fluent:Notify({
             Title = "Box Autofarm",
@@ -2062,13 +2085,14 @@ local function handlePlayerDeath()
     end
 end
 
+-- 📌 Function to teleport to nearest crate
 local function DirectTeleportToNearestCrate()
     local character = player.Character
     if not character then return end
-    
+
     local rootPart = character:FindFirstChild("HumanoidRootPart")
     local tool = character:FindFirstChildOfClass("Tool")
-    
+
     if not rootPart then return end
 
     if not tool then
@@ -2080,51 +2104,53 @@ local function DirectTeleportToNearestCrate()
         })
         return
     end
-    
+
     local nearestBox = FindNearestBox()
     if not nearestBox then return end
-    
+
     local maxSpeed, minSpeed, distanceThreshold = 500, 200, 70
-    
+
     local startPos = rootPart.Position
     local endPos = nearestBox.Position + Vector3.new(0, 2, 0)
     local distance = GetDistance(startPos, endPos)
-    
-    -- Calculate speed based on distance - slower when further away
+
     local speed = maxSpeed
     if distance > distanceThreshold then
         local factor = math.clamp((distance - distanceThreshold) / distanceThreshold, 0, 1)
         speed = maxSpeed - factor * (maxSpeed - minSpeed)
     end
-    
+
     local stepSize = speed * stepammount
     local totalSteps = math.ceil(distance / stepSize)
-    
-    -- Precompute random offsets for better performance
+
+    -- Precompute random offsets
     local randomOffsets = {}
     for i = 1, totalSteps do
         randomOffsets[i] = Vector3.new(math.random(), math.random(), math.random())
     end
-    
+
+    -- Anchor player before teleporting
+    rootPart.Anchored = true
+
     for i = 1, totalSteps do
         rootPart.CFrame = CFrame.new(startPos:Lerp(endPos + randomOffsets[i], i / totalSteps))
         tool:Activate()
-        
-        -- Add randomness to the wait time (±15% variation)
+
         local randomFactor = 1 + (math.random() * 0.3 - 0.15)
         task.wait(stepammount * randomFactor)
     end
-    
+
     tool:Activate()
+
+    -- Unanchor after teleporting
+    rootPart.Anchored = false
 end
 
--- Variable to track teleporting state
-local teleporting = false
-
--- 📌 Function to start teleport loop
+-- 📌 Start teleport loop
 local function StartTeleportLoop()
     if teleporting then return end
     teleporting = true
+    GodMode:SetValue(true)
 
     task.spawn(function()
         while TTPM.Value do
@@ -2137,18 +2163,19 @@ local function StartTeleportLoop()
                 })
                 break
             end
-            
+
             DirectTeleportToNearestCrate()
-            task.wait(0.1) -- Small delay between teleports
+            task.wait(0.1)
         end
         teleporting = false
     end)
 end
 
--- REMOVE DUPLICATE EVENT HANDLER - Keep only one OnChanged function
+-- 📌 Toggle changed event
 TTPM:OnChanged(function()
     if TTPM.Value then
         if not HasWeaponEquipped() then
+            GodMode:SetValue(godmodestate)
             TTPM:SetValue(false)
             Fluent:Notify({
                 Title = "Box Autofarm",
@@ -2161,7 +2188,7 @@ TTPM:OnChanged(function()
     end
 end)
 
--- Set up character death connection and handle character changes
+-- 📌 Setup character connections
 local function setupCharacterConnections()
     local character = player.Character
     if character then
@@ -2172,25 +2199,21 @@ local function setupCharacterConnections()
     end
 end
 
--- Set up initial character connections
+-- Initial setup
 setupCharacterConnections()
 
--- Connect to CharacterAdded to handle respawns
-player.CharacterAdded:Connect(function(newCharacter)
-    setupCharacterConnections()
-    
-    -- If the toggle is still on after respawn (which shouldn't happen but just in case)
+-- Handle character respawn
+player.CharacterAdded:Connect(function(character)
+    notificationShown = false
+    local humanoid = character:WaitForChild("Humanoid")
+    humanoid.Died:Connect(handlePlayerDeath)
+
     if TTPM.Value then
+        GodMode:SetValue(godmodestate)
         TTPM:SetValue(false)
     end
 end)
 
--- Connect to character respawn
-player.CharacterAdded:Connect(function(character)
-    notificationShown = false  -- Reset flag on respawn
-    local humanoid = character:WaitForChild("Humanoid")
-    humanoid.Died:Connect(handlePlayerDeath)
-end)
 
 -- Tabs.AutoCrates:AddParagraph({
 --     Title = "Disabled autofarm heads before enabling this.",
@@ -2581,7 +2604,8 @@ Tabs.UpdateLogs:AddParagraph({
     Title = "Version: 1.6.0 (upcomming)",
     Content = 
               "\n[+] Added Server Info to Server Section"..
-              "\n[+] Added Copy Server ID to Server Section"
+              "\n[+] Added Copy Server ID to Server Section"..
+              "\n[+] Fixed the Remove Lava Button in Misc Tab"
 
 })
 
@@ -2894,7 +2918,7 @@ end
 
 
 Fluent:Notify({
-    Title = "Blades & Buffoonery⚔️",
+    Title = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name.." | "..Version,
     Content = "The script has been loaded.",
     Duration = 8
 })
